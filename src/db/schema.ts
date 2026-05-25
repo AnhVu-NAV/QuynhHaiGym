@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, integer, boolean, text } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, timestamp, integer, boolean, text, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 // Users (Admins & Staff synced from Clerk)
@@ -141,6 +141,24 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
   }),
 }));
 
+// Phase 5: InBody Records
+export const inbodyRecords = pgTable("inbody_records", {
+  id: serial("id").primaryKey(),
+  memberId: integer("member_id").references(() => members.id).notNull(),
+  weight: real("weight").notNull(), // Cân nặng (kg)
+  skeletalMuscle: real("skeletal_muscle").notNull(), // Khối lượng cơ xương (kg)
+  bodyFat: real("body_fat").notNull(), // Tỷ lệ mỡ (%)
+  recordDate: timestamp("record_date").defaultNow().notNull(), // Ngày đo
+  notes: text("notes"), // Ghi chú thêm
+});
+
+export const inbodyRecordsRelations = relations(inbodyRecords, ({ one }) => ({
+  member: one(members, {
+    fields: [inbodyRecords.memberId],
+    references: [members.id],
+  }),
+}));
+
 // Relations
 export const membersRelations = relations(members, ({ many }) => ({
   subscriptions: many(subscriptions),
@@ -148,6 +166,7 @@ export const membersRelations = relations(members, ({ many }) => ({
   transactions: many(transactions),
   ptSessions: many(ptSessions),
   classBookings: many(classBookings),
+  inbodyRecords: many(inbodyRecords),
 }));
 
 export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({

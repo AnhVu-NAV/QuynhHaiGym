@@ -36,6 +36,29 @@ export async function getMembers(q?: string, page: number = 1, limit: number = 2
   return { data, totalPages, totalItems: Number(count) }
 }
 
+export async function getMemberById(id: number) {
+  const member = await db.query.members.findFirst({
+    where: eq(members.id, id),
+    with: {
+      subscriptions: {
+        with: {
+          package: true
+        }
+      },
+      ptSessions: {
+        with: {
+          trainer: true
+        }
+      },
+      inbodyRecords: {
+        orderBy: (inbodyRecords, { desc }) => [desc(inbodyRecords.recordDate)]
+      }
+    }
+  })
+  
+  return member
+}
+
 import { logAction } from "./audit-actions"
 
 export async function createMember(data: {

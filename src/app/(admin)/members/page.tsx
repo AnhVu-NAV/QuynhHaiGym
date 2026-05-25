@@ -94,6 +94,12 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     </div>
                     <div className="mt-4 pt-4 border-t flex items-center justify-end gap-2">
                       <Link
+                        href={`/members/${member.id}`}
+                        className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 h-8 rounded-md px-3 text-xs"
+                      >
+                        Hồ sơ
+                      </Link>
+                      <Link
                         href={`/my-card/${member.phoneNumber}`}
                         target="_blank"
                         className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors border border-indigo-200 bg-transparent hover:bg-indigo-50 text-indigo-600 h-8 rounded-md px-3 text-xs"
@@ -172,6 +178,12 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                           )}
                         </TableCell>
                         <TableCell className="text-right whitespace-nowrap space-x-2">
+                          <Link
+                            href={`/members/${member.id}`}
+                            className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 h-8 rounded-md px-3 text-xs"
+                          >
+                            Hồ sơ
+                          </Link>
                           <Link
                             href={`/my-card/${member.phoneNumber}`}
                             target="_blank"
