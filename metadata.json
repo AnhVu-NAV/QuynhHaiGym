@@ -1,0 +1,6 @@
+{
+  "name": "Quỳnh Hải Gym",
+  "description": "Hệ thống quản lý phòng gym chuyên nghiệp: Hội viên, check-in, gói tập và báo cáo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
