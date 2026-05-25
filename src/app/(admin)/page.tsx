@@ -39,10 +39,8 @@ export default async function DashboardPage() {
                         {isExpired ? `Đã quá hạn ${Math.abs(daysLeft)} ngày` : `Còn lại ${daysLeft} ngày`}
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" className="ml-3 shrink-0 h-8 border-red-200 text-red-700 hover:bg-red-50" asChild>
-                      <a href={`tel:${sub.member.phoneNumber}`}>
-                        <PhoneCall className="w-3.5 h-3.5 mr-1.5" /> Gọi
-                      </a>
+                    <Button size="sm" variant="outline" className="ml-3 shrink-0 h-8 border-red-200 text-red-700 hover:bg-red-50" render={<a href={`tel:${sub.member.phoneNumber}`} />}>
+                      <PhoneCall className="w-3.5 h-3.5 mr-1.5" /> Gọi
                     </Button>
                   </div>
                 )

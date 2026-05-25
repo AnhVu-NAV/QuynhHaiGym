@@ -24,7 +24,8 @@ export function PaginationWithLimit({
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  const handleLimitChange = (newLimit: string) => {
+  const handleLimitChange = (newLimit: string | null) => {
+    if (!newLimit) return;
     const params = new URLSearchParams(searchParams.toString())
     params.set("limit", newLimit)
     params.set("page", "1") // Reset to page 1
