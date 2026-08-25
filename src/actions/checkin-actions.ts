@@ -1,8 +1,8 @@
 "use server"
 
 import { db } from "@/db"
-import { members, subscriptions, checkIns } from "@/db/schema"
-import { eq, desc } from "drizzle-orm"
+import { members, subscriptions, checkIns, failedCheckIns } from "@/db/schema"
+import { and, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 export async function processCheckIn(phoneNumber: string) {
@@ -15,19 +15,32 @@ export async function processCheckIn(phoneNumber: string) {
     return { success: false, message: "Không tìm thấy hội viên với số điện thoại này." }
   }
 
-  // 2. Check active subscription
-  // In a real app we'd query subscriptions where endDate > now
-  const subs = await db.query.subscriptions.findMany({
-    where: eq(subscriptions.memberId, member.id),
+  // 2. Check an active subscription that is valid at this moment.
+  const now = new Date()
+  const activeSub = await db.query.subscriptions.findFirst({
+    where: and(
+      eq(subscriptions.memberId, member.id),
+      eq(subscriptions.status, "active"),
+      lte(subscriptions.startDate, now),
+      gte(subscriptions.endDate, now)
+    ),
     orderBy: [desc(subscriptions.endDate)]
   })
 
-  const activeSub = subs.find(s => new Date(s.endDate).getTime() > new Date().getTime())
-
   if (!activeSub) {
+    const message = "Gói tập của hội viên đã hết hạn. Vui lòng gia hạn gói."
+    await db.insert(failedCheckIns).values({
+      memberId: member.id,
+      attemptedAt: now,
+      source: "web",
+      reason: member.status === "active" ? "subscription_expired" : "member_inactive",
+      message,
+    })
+    revalidatePath("/")
+    revalidatePath("/check-ins")
     return { 
       success: false, 
-      message: "Gói tập của hội viên đã hết hạn. Vui lòng gia hạn gói.",
+      message,
       member: member 
     }
   }
@@ -47,28 +60,25 @@ export async function processCheckIn(phoneNumber: string) {
   }
 }
 
-import { inArray, sql, ilike, or } from "drizzle-orm"
-
-export async function getRecentCheckIns(q?: string, page: number = 1, limit: number = 20) {
+export async function getRecentCheckIns(q?: string, page: number = 1, limit: number = 10) {
   const offset = (page - 1) * limit;
 
-  const whereClause = q 
-    ? inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(
-        or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`))
-      ))
-    : undefined;
+  const memberClause = and(
+    ne(members.status, "deleted"),
+    q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
+  )
+  const whereClause = inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(memberClause))
 
-  const data = await db.query.checkIns.findMany({
-    where: whereClause,
-    orderBy: [desc(checkIns.checkInTime)],
-    limit,
-    offset,
-    with: {
-      member: true
-    }
-  })
-
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(checkIns).where(whereClause);
+  const [data, [{ count }]] = await Promise.all([
+    db.query.checkIns.findMany({
+      where: whereClause,
+      orderBy: [desc(checkIns.checkInTime)],
+      limit,
+      offset,
+      with: { member: true },
+    }),
+    db.select({ count: sql<number>`count(*)` }).from(checkIns).where(whereClause),
+  ])
   const totalPages = Math.ceil(Number(count) / limit);
 
   return { data, totalPages, totalItems: Number(count) }
@@ -81,4 +91,37 @@ export async function getMemberCheckIns(memberId: number) {
     limit: 50,
   })
   return data
+}
+
+export async function getRecentFailedCheckIns(q?: string, page: number = 1, limit: number = 10) {
+  const offset = (page - 1) * limit
+  const visibleMemberIds = db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))
+  const matchingMemberIds = db.select({ id: members.id }).from(members).where(and(
+    ne(members.status, "deleted"),
+    q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
+  ))
+  const whereClause = and(
+    or(isNull(failedCheckIns.memberId), inArray(failedCheckIns.memberId, visibleMemberIds)),
+    q ? or(
+      inArray(failedCheckIns.memberId, matchingMemberIds),
+      ilike(failedCheckIns.reason, `%${q}%`),
+      ilike(failedCheckIns.message, `%${q}%`),
+    ) : undefined,
+  )
+
+  const [data, [{ count }]] = await Promise.all([
+    db.query.failedCheckIns.findMany({
+      where: whereClause,
+      orderBy: [desc(failedCheckIns.attemptedAt)],
+      limit,
+      offset,
+      with: { member: true, device: true },
+    }),
+    db.select({ count: sql<number>`count(*)` }).from(failedCheckIns).where(whereClause),
+  ])
+  return {
+    data,
+    totalPages: Math.ceil(Number(count) / limit),
+    totalItems: Number(count),
+  }
 }

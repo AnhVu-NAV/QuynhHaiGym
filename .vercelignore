@@ -1,0 +1,5 @@
+.env
+.env.*
+.vercel/
+device-gateway/
+quỳnh-hải-gym.zip

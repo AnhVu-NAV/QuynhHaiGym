@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createMember, updateMember } from "@/actions/member-actions"
 import { registerSubscription } from "@/actions/subscription-actions"
+import { startFaceEnrollment } from "@/actions/device-actions"
 import { toast } from "sonner"
 import { Pencil, UserPlus, Camera, ArrowLeft } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary'
@@ -28,7 +29,11 @@ const formSchema = z.object({
   avatarUrl: z.string().optional(),
   packageId: z.string().optional(),
   paymentMethod: z.string().optional(),
+  enrollFace: z.boolean().default(true),
 })
+
+type MemberFormInput = z.input<typeof formSchema>
+type MemberFormValues = z.output<typeof formSchema>
 
 type MemberDialogProps = {
   mode: "create" | "edit"
@@ -56,12 +61,19 @@ type MemberDialogProps = {
 export function MemberDialog({ mode, memberData, packages, settings }: MemberDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<"form" | "qr">("form")
-  const [pendingData, setPendingData] = useState<z.infer<typeof formSchema> | null>(null)
+  const [pendingData, setPendingData] = useState<MemberFormValues | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string>(memberData?.avatarUrl || "")
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema) as any,
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    }
+  }, [])
+
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<MemberFormInput, unknown, MemberFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: memberData?.fullName || "",
       phoneNumber: memberData?.phoneNumber || "",
@@ -70,19 +82,30 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
       avatarUrl: memberData?.avatarUrl || "",
       packageId: "",
       paymentMethod: "cash",
+      enrollFace: true,
     },
   })
 
-  const handleUploadSuccess = (result: any) => {
-    if (result.event === "success") {
-      const url = result.info.secure_url;
+  const handleUploadSuccess = (result: unknown) => {
+    if (
+      typeof result === "object"
+      && result !== null
+      && "event" in result
+      && result.event === "success"
+      && "info" in result
+      && typeof result.info === "object"
+      && result.info !== null
+      && "secure_url" in result.info
+      && typeof result.info.secure_url === "string"
+    ) {
+      const url = result.info.secure_url
       setAvatarUrl(url);
       setValue("avatarUrl", url);
       toast.success("Tải ảnh lên thành công!");
     }
   }
 
-  async function onFormSubmit(values: z.infer<typeof formSchema>) {
+  async function onFormSubmit(values: MemberFormValues) {
     if (mode === "create" && values.packageId && values.paymentMethod === "transfer" && settings?.bankId) {
       setPendingData(values)
       setStep("qr")
@@ -92,11 +115,12 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
     await executeSubmission(values)
   }
 
-  async function executeSubmission(values: z.infer<typeof formSchema>) {
+  async function executeSubmission(values: MemberFormValues) {
     setIsSubmitting(true)
     try {
       if (mode === "create") {
-        const result = await createMember({ ...values, avatarUrl })
+        const { enrollFace, ...memberValues } = values
+        const result = await createMember({ ...memberValues, avatarUrl })
         
         if (values.packageId && result.newMemberId) {
           await registerSubscription({
@@ -109,13 +133,25 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
         } else {
           toast.success("Đã thêm hội viên thành công!")
         }
+
+        if (enrollFace && result.newMemberId) {
+          const faceResult = await startFaceEnrollment(result.newMemberId)
+          if (faceResult.success) toast.success(faceResult.message)
+          else toast.warning(faceResult.message)
+        }
       } else if (memberData) {
-        await updateMember(memberData.id, { ...values, avatarUrl })
+        await updateMember(memberData.id, {
+          fullName: values.fullName,
+          phoneNumber: values.phoneNumber,
+          gender: values.gender,
+          status: values.status,
+          avatarUrl,
+        })
         toast.success("Đã cập nhật hội viên!")
       }
       handleClose()
-    } catch (error: any) {
-      toast.error(error.message || "Đã có lỗi xảy ra. Vui lòng thử lại.")
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Đã có lỗi xảy ra. Vui lòng thử lại.")
     } finally {
       setIsSubmitting(false)
     }
@@ -123,12 +159,18 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
 
   function handleClose() {
     setOpen(false)
-    setTimeout(() => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    resetTimerRef.current = setTimeout(() => {
       reset()
-      setAvatarUrl("")
+      setAvatarUrl(memberData?.avatarUrl || "")
       setStep("form")
       setPendingData(null)
+      resetTimerRef.current = null
     }, 300)
+  }
+
+  function handleMemberFormSubmit(event: React.FormEvent<HTMLFormElement>) {
+    void handleSubmit(onFormSubmit)(event)
   }
 
   let qrUrl = null
@@ -170,7 +212,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
             <div className="flex flex-col items-center justify-center space-y-4 mb-4">
               <div className="relative h-24 w-24 rounded-full bg-slate-100 overflow-hidden border-2 border-primary/20 flex items-center justify-center">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar" className="object-cover w-full h-full" />
+                  <img src={avatarUrl} alt="Avatar" width={96} height={96} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                 ) : (
                   <Camera className="h-8 w-8 text-slate-400" />
                 )}
@@ -194,7 +236,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
               </CldUploadWidget>
             </div>
 
-            <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+            <form onSubmit={handleMemberFormSubmit} className="space-y-4 pb-1">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Họ tên</Label>
                 <Input id="fullName" placeholder="Nguyễn Văn A" {...register("fullName")} />
@@ -223,6 +265,16 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
                 
 
               </div>
+
+              {mode === "create" && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <input type="checkbox" className="mt-1 h-4 w-4" {...register("enrollFace")} />
+                  <span>
+                    <span className="block text-sm font-semibold text-emerald-900">Quét khuôn mặt trên AI26 sau khi lưu</span>
+                    <span className="block text-xs text-emerald-800">Máy sẽ bật chế độ đăng ký để hội viên nhìn vào camera.</span>
+                  </span>
+                </label>
+              )}
 
               {mode === "create" && packages && packages.length > 0 && (
                 <div className="pt-4 border-t border-slate-100 space-y-4">
@@ -258,7 +310,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
                 </div>
               )}
 
-              <Button type="submit" className="w-full mt-2" disabled={isSubmitting}>
+              <Button type="submit" className="sticky bottom-0 z-20 mt-2 h-11 w-full bg-emerald-600 shadow-[0_-10px_24px_rgba(255,255,255,.96)] hover:bg-emerald-700" disabled={isSubmitting}>
                 {isSubmitting ? "Đang xử lý..." : "Tiếp tục"}
               </Button>
             </form>
@@ -267,7 +319,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
           <div className="space-y-6 py-4">
             {qrUrl ? (
               <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                <img src={qrUrl} alt="VietQR" className="w-48 h-48 rounded-lg shadow-sm" />
+                <img src={qrUrl} alt="VietQR" width={192} height={192} decoding="async" className="w-48 h-48 rounded-lg shadow-sm" />
                 <p className="text-xs text-muted-foreground mt-2 text-center">Khách hàng quét mã để thanh toán</p>
                 <div className="mt-4 text-center">
                   <p className="text-sm font-medium">Hội viên: <span className="font-bold">{pendingData?.fullName}</span></p>

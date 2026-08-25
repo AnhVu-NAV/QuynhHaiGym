@@ -1,6 +1,11 @@
 # Quỳnh Hải Gym - Management System 🏋️‍♂️
 
-Một hệ thống phần mềm quản trị phòng tập Gym toàn diện, hiện đại và chuyên nghiệp được xây dựng bằng **Next.js 15 (App Router)**, kết hợp cùng **Drizzle ORM**, **Neon Database** (Serverless Postgres), và hệ thống xác thực bảo mật **Clerk**.
+Hướng dẫn tích hợp máy Ronald Jack AI26:
+
+- Trực tiếp AI26 → Vercel, không cần máy Windows: [docs/AI26_DIRECT_VERCEL_SETUP.md](docs/AI26_DIRECT_VERCEL_SETUP.md)
+- Qua Gateway Windows trong mạng LAN: [docs/AI26_SETUP.md](docs/AI26_SETUP.md)
+
+Một hệ thống phần mềm quản trị phòng tập Gym toàn diện, hiện đại và chuyên nghiệp được xây dựng bằng **Next.js 16 (App Router)**, kết hợp cùng **Drizzle ORM**, **Neon Database** (Serverless Postgres), và hệ thống xác thực nội bộ.
 
 Hệ thống được thiết kế tối ưu cho trải nghiệm người dùng (UX/UI) với giao diện Dark/Light mode linh hoạt, đem lại tốc độ nhanh và tính ổn định cao nhất cho chủ phòng tập và nhân viên.
 
@@ -32,7 +37,7 @@ Hệ thống được thiết kế tối ưu cho trải nghiệm người dùng 
 - Lịch tập tự động đồng bộ vào Thẻ Ảo của hội viên để nhắc lịch.
 
 ### 6. 🛡️ Nhật ký hệ thống (Audit Logs) & Bảo mật
-- **Bảo mật tuyệt đối:** Đăng nhập và xác thực qua Google SSO/Username bằng hệ thống Clerk. Chỉ những Email/Tài khoản được Admin duyệt mới có quyền truy cập.
+- **Xác thực nội bộ:** Đăng nhập bằng email/username, mật khẩu băm scrypt, session cookie được ký và phân quyền Admin/Staff.
 - **Audit Logs:** Lưu vết mọi thao tác (Thêm, sửa, xoá) của toàn bộ nhân viên, chống thất thoát và gian lận dữ liệu.
 
 ### 7. ⚠️ Cảnh báo tự động
@@ -46,7 +51,7 @@ Hệ thống được thiết kế tối ưu cho trải nghiệm người dùng 
 - **Styling:** Tailwind CSS + Shadcn UI
 - **Database:** PostgreSQL (Lưu trữ trên Neon.tech)
 - **ORM:** Drizzle ORM
-- **Authentication:** Clerk
+- **Authentication:** Internal credentials + signed HTTP-only cookie
 - **Image Storage:** Cloudinary
 - **Icons:** Lucide React
 - **Charts:** Recharts
@@ -68,11 +73,9 @@ Tạo file `.env` ở thư mục gốc và điền các thông tin sau (liên h�
 # Neon Database Connection
 DATABASE_URL=postgresql://...
 
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+# Internal Authentication (tạo chuỗi ngẫu nhiên tối thiểu 32 ký tự)
+SESSION_SECRET=replace-with-a-long-random-secret
+
 
 # Cloudinary (Lưu ảnh đại diện)
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=...

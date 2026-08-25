@@ -17,22 +17,28 @@ import {
 export function DeleteMemberButton({ id }: { id: number }) {
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmed, setConfirmed] = useState(false)
 
   async function handleDelete() {
     setIsDeleting(true)
     try {
-      await deleteMember(id)
-      toast.success("Đã xóa hội viên")
+      const result = await deleteMember(id)
+      if (!result.success) {
+        toast.error(result.error || "Không thể xóa hội viên")
+        return
+      }
+      toast.success(result.message || "Đã xóa ẩn danh hội viên")
       setOpen(false)
-    } catch (error) {
-      toast.error("Không thể xóa hội viên (đang có dữ liệu thanh toán/check-in)")
+      setConfirmed(false)
+    } catch {
+      toast.error("Không thể xóa hội viên. Dữ liệu chưa bị thay đổi.")
     } finally {
       setIsDeleting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (!value) setConfirmed(false) }}>
       <DialogTrigger
         render={
           <Button 
@@ -47,15 +53,19 @@ export function DeleteMemberButton({ id }: { id: number }) {
       />
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-red-600">Xác nhận xóa hội viên</DialogTitle>
+          <DialogTitle className="text-red-600">Xác nhận xóa ẩn danh</DialogTitle>
           <DialogDescription>
-            Bạn có chắc chắn muốn xóa hội viên này không? Toàn bộ dữ liệu liên quan (hình ảnh, gói tập) có thể sẽ bị ảnh hưởng. Hành động này không thể hoàn tác.
+            Thông tin cá nhân và ảnh sẽ bị xóa; gói/lịch bị hủy và AI26 sẽ xóa khuôn mặt. Giao dịch, check-in được giữ ẩn danh để đối soát.
           </DialogDescription>
         </DialogHeader>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
+          <span>Tôi hiểu hội viên sẽ biến mất khỏi hệ thống vận hành.</span>
+        </label>
         <div className="flex justify-end gap-3 mt-4">
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>Hủy</Button>
-          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Đang xóa..." : "Xóa Hội Viên"}
+          <Button variant="destructive" onClick={handleDelete} disabled={isDeleting || !confirmed}>
+            {isDeleting ? "Đang xóa ẩn danh..." : "Xóa ẩn danh"}
           </Button>
         </div>
       </DialogContent>

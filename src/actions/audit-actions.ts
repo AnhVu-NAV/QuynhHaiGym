@@ -2,21 +2,21 @@
 
 import { db } from "@/db"
 import { auditLogs } from "@/db/schema"
-import { auth } from "@clerk/nextjs/server"
-import { desc, sql, ilike, or } from "drizzle-orm"
+import { getCurrentUser } from "@/lib/auth"
+import { and, desc, gte, sql, ilike, or } from "drizzle-orm"
 
 export async function logAction(
   action: "CREATE" | "UPDATE" | "DELETE",
-  entityType: "MEMBER" | "PACKAGE" | "SUBSCRIPTION" | "TRANSACTION" | "TRAINER" | "CLASS" | "SESSION" | "USER" | "SETTINGS",
+  entityType: "MEMBER" | "PACKAGE" | "SUBSCRIPTION" | "TRANSACTION" | "TRAINER" | "CLASS" | "SESSION" | "USER" | "SETTINGS" | "DEVICE",
   entityId: string | number,
-  details?: any
+  details?: unknown
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) return; // Do not log if not authenticated (e.g., automated tasks)
+    const user = await getCurrentUser()
+    if (!user) return;
 
     await db.insert(auditLogs).values({
-      userId,
+      userId: user.id,
       action,
       entityType,
       entityId: String(entityId),
@@ -27,29 +27,29 @@ export async function logAction(
   }
 }
 
-export async function getAuditLogs(q?: string, page: number = 1, limit: number = 20) {
+export async function getAuditLogs(q?: string, page: number = 1, limit: number = 10) {
   const offset = (page - 1) * limit;
+  const retentionCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-  let whereClause = undefined;
-  if (q) {
-    whereClause = or(
+  const searchClause = q
+    ? or(
       ilike(auditLogs.action, `%${q}%`),
       ilike(auditLogs.entityType, `%${q}%`),
       ilike(auditLogs.details, `%${q}%`)
-    );
-  }
+    )
+    : undefined
+  const whereClause = and(gte(auditLogs.createdAt, retentionCutoff), searchClause)
 
-  const data = await db.query.auditLogs.findMany({
-    where: whereClause,
-    orderBy: [desc(auditLogs.createdAt)],
-    limit,
-    offset,
-    with: {
-      user: true
-    }
-  })
-
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(whereClause);
+  const [data, [{ count }]] = await Promise.all([
+    db.query.auditLogs.findMany({
+      where: whereClause,
+      orderBy: [desc(auditLogs.createdAt)],
+      limit,
+      offset,
+      with: { user: true },
+    }),
+    db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(whereClause),
+  ])
   const totalPages = Math.ceil(Number(count) / limit);
 
   return { data, totalPages, totalItems: Number(count) }

@@ -24,21 +24,34 @@ type MemberDetailsDialogProps = {
 
 export function MemberDetailsDialog({ memberData }: MemberDetailsDialogProps) {
   const [open, setOpen] = useState(false)
-  const [history, setHistory] = useState<any[]>([])
+  const [history, setHistory] = useState<Awaited<ReturnType<typeof getMemberCheckIns>>>([])
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    if (open) {
-      setIsLoading(true)
-      getMemberCheckIns(memberData.id).then(data => {
-        setHistory(data)
-        setIsLoading(false)
+    if (!open) return
+
+    let cancelled = false
+    getMemberCheckIns(memberData.id)
+      .then((data) => {
+        if (!cancelled) setHistory(data)
       })
+      .catch(() => {
+        if (!cancelled) setHistory([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [open, memberData.id])
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      setOpen(nextOpen)
+      if (nextOpen) setIsLoading(true)
+    }}>
       <DialogTrigger 
         render={
           <Button variant="outline" size="sm" className="h-8 px-2 text-slate-600 border-slate-200 hover:bg-slate-50" title="Lịch sử tập">
@@ -53,7 +66,7 @@ export function MemberDetailsDialog({ memberData }: MemberDetailsDialogProps) {
         
         <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
           {memberData.avatarUrl ? (
-            <img src={memberData.avatarUrl} alt="avatar" className="w-16 h-16 rounded-full object-cover border-2 border-slate-100" />
+            <img src={memberData.avatarUrl} alt="avatar" width={64} height={64} loading="lazy" decoding="async" className="w-16 h-16 rounded-full object-cover border-2 border-slate-100" />
           ) : (
             <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-xl font-bold text-slate-500">
               {memberData.fullName.charAt(0)}

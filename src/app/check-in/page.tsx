@@ -1,23 +1,46 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { processCheckIn } from "@/actions/checkin-actions"
-import { QrCode, Dumbbell, UserCheck, XCircle, Camera, Keyboard } from "lucide-react"
-import { Scanner } from '@yudiel/react-qr-scanner'
+import { QrCode, Dumbbell, UserCheck, XCircle, Keyboard } from "lucide-react"
+import { Scanner, type IDetectedBarcode } from '@yudiel/react-qr-scanner'
+
+type CheckInMember = {
+  fullName: string
+}
 
 export default function PublicCheckInPage() {
   const [phoneNumber, setPhoneNumber] = useState("")
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
-  const [member, setMember] = useState<any>(null)
+  const [member, setMember] = useState<CheckInMember | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [isScanning, setIsScanning] = useState(true)
+  const processingRef = useRef(false)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    }
+  }, [])
+
+  function scheduleReset(delay: number) {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    resetTimerRef.current = setTimeout(() => {
+      setStatus("idle")
+      setPhoneNumber("")
+      setMember(null)
+      resetTimerRef.current = null
+    }, delay)
+  }
 
   async function executeCheckIn(phone: string) {
-    if (!phone || phone.length < 9) return
+    if (!phone || phone.length < 9 || processingRef.current) return
 
+    processingRef.current = true
     setIsProcessing(true)
     setStatus("idle")
     
@@ -26,26 +49,20 @@ export default function PublicCheckInPage() {
       if (res.success) {
         setStatus("success")
         setMessage(res.message)
-        setMember(res.member)
-        setTimeout(() => {
-          setStatus("idle")
-          setPhoneNumber("")
-          setMember(null)
-        }, 3000)
+        setMember(res.member || null)
+        scheduleReset(3000)
       } else {
         setStatus("error")
         setMessage(res.message)
         setMember(res.member || null)
-        setTimeout(() => {
-          setStatus("idle")
-          setPhoneNumber("")
-          setMember(null)
-        }, 5000)
+        scheduleReset(5000)
       }
-    } catch (err) {
+    } catch {
       setStatus("error")
       setMessage("Lỗi kết nối máy chủ")
+      scheduleReset(5000)
     } finally {
+      processingRef.current = false
       setIsProcessing(false)
     }
   }
@@ -55,8 +72,8 @@ export default function PublicCheckInPage() {
     executeCheckIn(phoneNumber)
   }
 
-  function handleScan(result: any) {
-    if (result && result.length > 0 && !isProcessing) {
+  function handleScan(result: IDetectedBarcode[]) {
+    if (result && result.length > 0 && !processingRef.current) {
       const scannedPhone = result[0].rawValue;
       if (scannedPhone) {
         setPhoneNumber(scannedPhone);
@@ -104,7 +121,7 @@ export default function PublicCheckInPage() {
             </form>
           )}
 
-          {status === "idle" && isScanning && (
+          {status === "idle" && isScanning && !isProcessing && (
             <div className="space-y-4">
               <div className="text-center mb-4">
                 <h3 className="font-bold text-slate-800">Đưa mã QR vào khung hình</h3>
