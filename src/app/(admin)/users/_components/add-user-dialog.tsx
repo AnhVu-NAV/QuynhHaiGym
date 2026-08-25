@@ -42,7 +42,7 @@ export function AddUserDialog() {
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Tạo tài khoản Nội bộ</DialogTitle>
           <DialogDescription>
@@ -61,11 +61,21 @@ export function AddUserDialog() {
             </div>
           <div className="space-y-2">
             <Label htmlFor="password">Mật khẩu</Label>
-            <Input id="password" name="password" type="text" required placeholder="Ít nhất 8 ký tự" minLength={8} />
+            <Input id="password" name="password" type="password" autoComplete="new-password" required placeholder="Ít nhất 8 ký tự" minLength={8} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="fullName">Họ và tên</Label>
             <Input id="fullName" name="fullName" required placeholder="Nguyễn Văn A" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Số điện thoại</Label>
+              <Input id="phoneNumber" name="phoneNumber" inputMode="tel" placeholder="09..." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="jobTitle">Chức danh</Label>
+              <Input id="jobTitle" name="jobTitle" placeholder="Lễ tân, quản lý..." />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="role">Phân quyền</Label>

@@ -6,12 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:ai26": "tsx scripts/ai26-bs-smoke.ts",
+    "test:ai26:production": "tsx scripts/verify-ai26-production.ts",
+    "inspect:ai26:inventory": "tsx scripts/inspect-ai26-inventory.ts",
+    "inspect:ai26:logs": "tsx scripts/verify-ai26-log-storage.ts",
+    "test:ai26:fast-query": "tsx scripts/verify-ai26-fast-query.ts",
+    "db:migrate:production": "tsx scripts/run-production-migrations.ts",
+    "db:sanitize:ai26": "tsx scripts/sanitize-ai26-events.ts",
+    "admin:set-password": "tsx scripts/set-admin-password.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
-    "@clerk/localizations": "^4.6.8",
-    "@clerk/nextjs": "^7.4.1",
     "@hookform/resolvers": "^5.4.0",
     "@neondatabase/serverless": "^1.1.0",
     "@yudiel/react-qr-scanner": "^2.6.0",

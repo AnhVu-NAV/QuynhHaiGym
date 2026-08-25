@@ -1,66 +1,33 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
-import { UserButton } from "@clerk/nextjs"
-import { currentUser } from "@clerk/nextjs/server"
-import { db } from "@/db"
-import { users } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { LogoutButton } from "@/components/auth/logout-button"
+import { requireUser } from "@/lib/auth"
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const user = await currentUser()
-  const userEmail = user?.emailAddresses[0]?.emailAddress || ""
-  
-  if (!user) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser()
+
+  if (user.role !== "admin" && user.role !== "staff") {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Vui lòng đăng nhập</h1>
-      </div>
-    )
-  }
-
-  // Find user in DB
-  let role = "none"
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, user.id)
-  })
-
-  if (dbUser) {
-    role = dbUser.role
-  } else {
-    // Fallback: Check if they are the root admin based on ENV
-    const allowedEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",") : []
-    if (allowedEmails.includes(userEmail)) {
-      role = "admin"
-    }
-  }
-
-  if (role !== "admin" && role !== "staff") {
-    return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 space-y-4">
+      <div className="flex h-screen w-full flex-col items-center justify-center space-y-4 bg-slate-50">
         <h1 className="text-2xl font-bold text-red-600">Không có quyền truy cập</h1>
-        <p className="text-slate-600">Tài khoản {userEmail} không thuộc hệ thống nhân sự.</p>
-        <UserButton />
+        <p className="text-slate-600">Tài khoản {user.email || user.username} không thuộc hệ thống nhân sự.</p>
+        <LogoutButton />
       </div>
     )
   }
 
   return (
     <SidebarProvider>
-      <AppSidebar role={role} />
-      <main className="w-full h-full flex flex-col bg-background min-w-0">
-        <header className="flex h-16 items-center px-6 border-b bg-card gap-4 w-full">
-          <SidebarTrigger />
-          <div className="ml-auto flex items-center space-x-4">
-            <UserButton />
+      <AppSidebar role={user.role} />
+      <main className="flex h-svh w-full min-w-0 flex-col bg-transparent">
+        <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-4 border-b border-white/60 bg-white/80 px-4 shadow-sm backdrop-blur-xl sm:px-6">
+          <SidebarTrigger className="rounded-xl border border-slate-200 bg-white" />
+          <div className="ml-auto flex items-center gap-3">
+            <div className="hidden text-right sm:block"><div className="text-sm font-semibold text-slate-800">{user.fullName || user.email || user.username}</div><div className="text-xs text-slate-500">{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</div></div>
+            <LogoutButton />
           </div>
         </header>
-        <div className="flex-1 p-4 sm:p-6 overflow-auto min-w-0">
-          {children}
-        </div>
+        <div className="min-w-0 flex-1 overflow-auto p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </SidebarProvider>
   )

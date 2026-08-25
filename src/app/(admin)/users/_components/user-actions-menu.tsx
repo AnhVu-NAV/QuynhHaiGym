@@ -7,16 +7,20 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toggleUserLock, updateUserRole } from "@/actions/user-actions"
 import { toast } from "sonner"
 
-export function UserActionsMenu({ user }: { user: any }) {
+type ManagedUser = {
+  id: string
+  role: string
+  isLocked: boolean
+}
+
+export function UserActionsMenu({ user }: { user: ManagedUser }) {
   const [isUpdating, setIsUpdating] = useState(false)
-  const isLocked = user.clerkData?.banned || false
+  const isLocked = user.isLocked || false
 
   async function handleToggleLock() {
     setIsUpdating(true)

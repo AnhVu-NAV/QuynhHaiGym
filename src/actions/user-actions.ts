@@ -1,133 +1,105 @@
 "use server"
 
-import { auth, clerkClient } from "@clerk/nextjs/server"
+import { randomUUID } from "node:crypto"
 import { db } from "@/db"
 import { users } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { and, eq, or, ilike, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/auth"
+import { hashPassword } from "@/lib/password"
 
-// Verify if the current user is an admin
-async function requireAdmin() {
-  const { userId } = await auth()
-  if (!userId) throw new Error("Unauthorized")
-
-  const dbUser = await db.query.users.findFirst({
-    where: eq(users.id, userId)
-  })
-
-  if (!dbUser || dbUser.role !== "admin") {
-    // Check fallback for root admin
-    const { currentUser } = await import("@clerk/nextjs/server")
-    const user = await currentUser()
-    const email = user?.emailAddresses[0]?.emailAddress || ""
-    const allowedEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",") : []
-    
-    if (!allowedEmails.includes(email)) {
-      throw new Error("Forbidden: Requires Admin role")
-    }
-  }
-
-  return userId
-}
-
-import { or, ilike, sql } from "drizzle-orm"
-
-export async function getInternalUsers(q?: string, page: number = 1, limit: number = 20) {
+export async function getInternalUsers(q?: string, page = 1, limit = 20, role = "all", status = "all") {
   await requireAdmin()
-  const offset = (page - 1) * limit;
-
-  const whereClause = q ? or(
+  const offset = (page - 1) * limit
+  const searchClause = q ? or(
     ilike(users.fullName, `%${q}%`),
-    ilike(users.email, `%${q}%`)
-  ) : undefined;
-  
-  const data = await db.query.users.findMany({
-    where: whereClause,
-    orderBy: (users, { desc }) => [desc(users.createdAt)],
-    limit,
-    offset
-  })
+    ilike(users.email, `%${q}%`),
+    ilike(users.username, `%${q}%`),
+    ilike(users.phoneNumber, `%${q}%`),
+    ilike(users.jobTitle, `%${q}%`),
+  ) : undefined
+  const roleClause = role === "admin" || role === "staff" ? eq(users.role, role) : undefined
+  const statusClause = status === "active" ? eq(users.isLocked, false) : status === "locked" ? eq(users.isLocked, true) : undefined
+  const whereClause = and(searchClause, roleClause, statusClause)
 
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(users).where(whereClause);
-  const totalPages = Math.ceil(Number(count) / limit);
-
-  return { data, totalPages, totalItems: Number(count) }
+  const [data, [{ count }]] = await Promise.all([
+    db.query.users.findMany({
+      where: whereClause,
+      orderBy: (table, { desc }) => [desc(table.createdAt)],
+      limit,
+      offset,
+    }),
+    db.select({ count: sql<number>`count(*)` }).from(users).where(whereClause),
+  ])
+  return {
+    data: data.map(({ passwordHash, ...user }) => {
+      void passwordHash
+      return user
+    }),
+    totalPages: Math.ceil(Number(count) / limit),
+    totalItems: Number(count),
+  }
 }
 
 export async function createInternalUser(formData: FormData) {
   await requireAdmin()
-  
-  const email = formData.get("email") as string
-  const username = formData.get("username") as string
-  const password = formData.get("password") as string
-  const fullName = formData.get("fullName") as string
-  const role = formData.get("role") as string
 
-  if ((!email && !username) || !password || !fullName || !role) {
-    throw new Error("Vui lòng điền đầy đủ thông tin (Email hoặc Username)")
+  const email = String(formData.get("email") ?? "").trim().toLowerCase()
+  const username = String(formData.get("username") ?? "").trim().toLowerCase()
+  const password = String(formData.get("password") ?? "")
+  const fullName = String(formData.get("fullName") ?? "").trim()
+  const phoneNumber = String(formData.get("phoneNumber") ?? "").trim()
+  const jobTitle = String(formData.get("jobTitle") ?? "").trim()
+  const role = String(formData.get("role") ?? "")
+
+  if ((!email && !username) || password.length < 8 || !fullName || !["admin", "staff"].includes(role)) {
+    return { error: "Vui lòng nhập đủ thông tin; mật khẩu cần ít nhất 8 ký tự." }
   }
 
   try {
-    // 1. Create user in Clerk
-    const client = await clerkClient()
-    const clerkParams: any = {
-      password: password,
-      firstName: fullName.split(" ")[0],
-      lastName: fullName.split(" ").slice(1).join(" "),
-      skipPasswordChecks: true,
-      skipPasswordRequirement: false,
-    }
-    
-    if (email) clerkParams.emailAddress = [email]
-    if (username) clerkParams.username = username
-
-    const newClerkUser = await client.users.createUser(clerkParams)
-
-    // 2. Sync to Database
     await db.insert(users).values({
-      id: newClerkUser.id,
+      id: randomUUID(),
       email: email || null,
       username: username || null,
-      fullName: fullName,
-      role: role,
+      passwordHash: await hashPassword(password),
+      fullName,
+      phoneNumber: phoneNumber || null,
+      jobTitle: jobTitle || null,
+      role,
     })
-
     revalidatePath("/users")
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error creating user:", error)
-    return { error: error.errors?.[0]?.message || error.message || "Không thể tạo tài khoản" }
+    return { error: "Email hoặc tên đăng nhập đã được sử dụng." }
   }
 }
 
 export async function toggleUserLock(userId: string, currentlyLocked: boolean) {
-  await requireAdmin()
-  
+  const admin = await requireAdmin()
+  if (admin.id === userId) return { error: "Bạn không thể tự khóa tài khoản đang đăng nhập." }
+
   try {
-    const client = await clerkClient()
-    if (currentlyLocked) {
-      await client.users.unbanUser(userId)
-    } else {
-      await client.users.banUser(userId)
-    }
-    
+    await db.update(users).set({ isLocked: !currentlyLocked }).where(eq(users.id, userId))
     revalidatePath("/users")
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error toggling lock:", error)
-    return { error: "Không thể thay đổi trạng thái tài khoản" }
+    return { error: "Không thể thay đổi trạng thái tài khoản." }
   }
 }
 
 export async function updateUserRole(userId: string, newRole: string) {
-  await requireAdmin()
-  
+  const admin = await requireAdmin()
+  if (!["admin", "staff"].includes(newRole)) return { error: "Quyền không hợp lệ." }
+  if (admin.id === userId) return { error: "Bạn không thể tự thay đổi quyền của mình." }
+
   try {
     await db.update(users).set({ role: newRole }).where(eq(users.id, userId))
     revalidatePath("/users")
     return { success: true }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error updating role:", error)
-    return { error: "Không thể cập nhật quyền" }
+    return { error: "Không thể cập nhật quyền." }
   }
 }

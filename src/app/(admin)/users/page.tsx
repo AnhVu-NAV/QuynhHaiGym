@@ -6,133 +6,73 @@ import { UserActionsMenu } from "./_components/user-actions-menu"
 import { Badge } from "@/components/ui/badge"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
-import { clerkClient } from "@clerk/nextjs/server"
+import { QueryFilter } from "@/components/ui/query-filter"
 
-export default async function UsersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  const awaitedParams = await searchParams
-  const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
-  const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
-  const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+export default async function UsersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams
+  const q = typeof params.q === "string" ? params.q : ""
+  const page = typeof params.page === "string" ? Number(params.page) : 1
+  const limit = typeof params.limit === "string" ? Number(params.limit) : 20
+  const role = typeof params.role === "string" ? params.role : "all"
+  const accountStatus = typeof params.status === "string" ? params.status : "all"
+  const { data: users, totalPages, totalItems } = await getInternalUsers(q, page, limit, role, accountStatus)
 
-  const { data: dbUsers, totalPages, totalItems } = await getInternalUsers(q, page, limit)
-  
-  const client = await clerkClient()
-  const clerkUsersList = await client.users.getUserList()
-  
-  const users = dbUsers.map(dbUser => {
-    const clerkUser = clerkUsersList.data.find(u => u.id === dbUser.id)
-    return {
-      ...dbUser,
-      clerkData: clerkUser ? JSON.parse(JSON.stringify(clerkUser)) : null
-    }
-  })
+  const status = (locked: boolean) => locked ? (
+    <span className="flex items-center text-sm font-medium text-red-600"><span className="mr-2 h-2 w-2 rounded-full bg-red-500" />Đã khóa</span>
+  ) : (
+    <span className="flex items-center text-sm font-medium text-emerald-600"><span className="mr-2 h-2 w-2 rounded-full bg-emerald-500" />Đang hoạt động</span>
+  )
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Quản lý Nhân sự</h2>
-          <p className="text-muted-foreground mt-1">Quản lý tài khoản và phân quyền cho nhân viên phòng tập.</p>
+          <p className="mt-1 text-muted-foreground">Quản lý tài khoản và phân quyền cho nhân viên phòng tập.</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <SearchInput placeholder="Tìm tên hoặc email..." />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="min-w-56 flex-1"><SearchInput placeholder="Tìm tên, SĐT, chức danh..." /></div>
+          <QueryFilter param="role" label="Phân quyền" options={[{ value: "all", label: "Mọi quyền" }, { value: "admin", label: "Quản trị viên" }, { value: "staff", label: "Nhân viên" }]} />
+          <QueryFilter param="status" label="Trạng thái" options={[{ value: "all", label: "Mọi trạng thái" }, { value: "active", label: "Đang hoạt động" }, { value: "locked", label: "Đã khóa" }]} />
           <AddUserDialog />
         </div>
       </div>
-
-      <Card className="shadow-sm border-muted">
-        <CardHeader className="pb-4">
-          <CardTitle>Danh sách Nhân sự</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6 overflow-hidden">
-          {/* Mobile View */}
+      <Card className="border-muted shadow-sm">
+        <CardHeader><CardTitle>Danh sách Nhân sự</CardTitle></CardHeader>
+        <CardContent className="overflow-hidden p-0 sm:p-6">
           <div className="grid gap-3 p-4 md:hidden">
-            {users.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground bg-slate-50 rounded-lg">
-                Không tìm thấy dữ liệu.
-              </div>
-            ) : (
-              users.map((u) => (
-                <Card key={u.id} className="p-4 shadow-sm border-slate-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="flex-1 min-w-0 pr-4">
-                      <div className="font-semibold text-slate-800 text-lg truncate">{u.fullName}</div>
-                      <div className="text-sm text-muted-foreground truncate">{u.email}</div>
-                    </div>
-                    <UserActionsMenu user={u} />
+            {users.map((user) => (
+              <Card key={user.id} className="p-4">
+                <div className="mb-3 flex justify-between">
+                  <div className="min-w-0">
+                    <div className="truncate text-lg font-semibold">{user.fullName}</div>
+                    <div className="truncate text-sm text-muted-foreground">{user.email || user.username}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{user.jobTitle || "Nhân viên"}{user.phoneNumber ? ` · ${user.phoneNumber}` : ""}</div>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    {u.role === "admin" ? (
-                      <Badge variant="default" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-0">Quản trị viên</Badge>
-                    ) : (
-                      <Badge variant="secondary">Nhân viên</Badge>
-                    )}
-                    {u.clerkData?.banned ? (
-                      <span className="flex items-center text-red-600 text-xs font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
-                        Đã khóa
-                      </span>
-                    ) : (
-                      <span className="flex items-center text-emerald-600 text-xs font-medium">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
-                        Đang hoạt động
-                      </span>
-                    )}
-                  </div>
-                </Card>
-              ))
-            )}
+                  <UserActionsMenu user={user} />
+                </div>
+                <div className="flex items-center justify-between border-t pt-3">
+                  <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</Badge>
+                  {status(user.isLocked)}
+                </div>
+              </Card>
+            ))}
           </div>
-
-          {/* Desktop View */}
-          <div className="hidden md:block overflow-x-auto">
-            <Table className="min-w-[500px] sm:min-w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="whitespace-nowrap">Email</TableHead>
-                  <TableHead className="whitespace-nowrap">Họ tên</TableHead>
-                  <TableHead className="whitespace-nowrap">Phân quyền</TableHead>
-                  <TableHead className="whitespace-nowrap">Trạng thái</TableHead>
-                  <TableHead className="text-right whitespace-nowrap">Hành động</TableHead>
-                </TableRow>
-              </TableHeader>
+          <div className="hidden overflow-x-auto md:block">
+            <Table>
+              <TableHeader><TableRow><TableHead>Nhân viên</TableHead><TableHead>Liên hệ</TableHead><TableHead>Chức danh</TableHead><TableHead>Phân quyền</TableHead><TableHead>Trạng thái</TableHead><TableHead className="text-right">Hành động</TableHead></TableRow></TableHeader>
               <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium whitespace-nowrap">{u.email}</TableCell>
-                    <TableCell className="whitespace-nowrap">{u.fullName}</TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {u.role === "admin" ? (
-                        <Badge variant="default" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Quản trị viên</Badge>
-                      ) : (
-                        <Badge variant="secondary">Nhân viên</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {u.clerkData?.banned ? (
-                        <span className="flex items-center text-red-600 text-sm font-medium">
-                          <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
-                          Đã khóa
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-emerald-600 text-sm font-medium">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
-                          Đang hoạt động
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <UserActionsMenu user={u} />
-                    </TableCell>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell><div className="font-medium">{user.fullName}</div><div className="text-xs text-muted-foreground">{user.username ? `@${user.username}` : ""}</div></TableCell>
+                    <TableCell><div>{user.phoneNumber || "—"}</div><div className="text-xs text-muted-foreground">{user.email || ""}</div></TableCell>
+                    <TableCell>{user.jobTitle || "Nhân viên"}</TableCell>
+                    <TableCell><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</Badge></TableCell>
+                    <TableCell>{status(user.isLocked)}</TableCell>
+                    <TableCell className="text-right"><UserActionsMenu user={user} /></TableCell>
                   </TableRow>
                 ))}
-                {users.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                      Không tìm thấy dữ liệu.
-                    </TableCell>
-                  </TableRow>
-                )}
+                {!users.length && <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Không tìm thấy dữ liệu.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
