@@ -6,9 +6,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Banknote,
-  CalendarDays,
   CheckCircle2,
   CreditCard,
+  LayoutDashboard,
   PhoneCall,
   QrCode,
   ScanFace,
@@ -96,39 +96,41 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-5 pb-6 sm:space-y-6">
-      <section className="relative isolate overflow-hidden rounded-[28px] bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-600 px-5 py-6 text-white shadow-[0_18px_50px_-24px_rgba(5,150,105,0.75)] sm:px-7 sm:py-7 lg:px-8">
-        <div className="pointer-events-none absolute -right-12 -top-24 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-cyan-300/15 blur-3xl" />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-emerald-50 backdrop-blur-sm">
-              <CalendarDays className="size-3.5" />
-              {todayLabel}
+    <div className="w-full space-y-5 pb-6 sm:space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3.5">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
+            <LayoutDashboard className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Tổng quan vận hành</h1>
+              <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 lg:inline-flex">
+                {todayLabel}
+              </span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">Tổng quan vận hành</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-emerald-50/85 sm:text-base">
+            <p className="text-sm leading-6 text-slate-500 sm:text-base">
               Doanh thu, hội viên và hoạt động check-in quan trọng đều được tổng hợp tại đây.
             </p>
           </div>
+        </div>
 
-          <div className="grid w-full grid-cols-2 gap-2.5 sm:w-auto">
-            <Button
-              className="h-10 border-white/15 bg-white text-emerald-800 shadow-sm hover:bg-emerald-50"
-              render={<Link href="/members" />}
-            >
-              <UserPlus className="size-4" />
-              Thêm hội viên
-            </Button>
-            <Button
-              variant="outline"
-              className="h-10 border-white/25 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:text-white"
-              render={<Link href="/check-ins" />}
-            >
-              <QrCode className="size-4" />
-              Xem check-in
-            </Button>
-          </div>
+        <div className="grid w-full grid-cols-2 gap-2.5 sm:w-auto">
+          <Button
+            className="h-10 bg-emerald-700 text-white shadow-sm hover:bg-emerald-800"
+            render={<Link href="/members" />}
+          >
+            <UserPlus className="size-4" />
+            Thêm hội viên
+          </Button>
+          <Button
+            variant="outline"
+            className="h-10 border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900"
+            render={<Link href="/check-ins" />}
+          >
+            <QrCode className="size-4" />
+            Xem check-in
+          </Button>
         </div>
       </section>
 
