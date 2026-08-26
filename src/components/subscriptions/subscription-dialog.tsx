@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -51,6 +51,7 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
   const [selectedPackage, setSelectedPackage] = useState<string>(packages[0]?.id.toString() || "")
   const [paymentMethod, setPaymentMethod] = useState("cash")
   const [startDate, setStartDate] = useState(todayInputValue)
+  const idempotencyKeyRef = useRef(crypto.randomUUID())
 
   const pkg = packages.find(p => p.id.toString() === selectedPackage)
 
@@ -70,11 +71,13 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
         memberId,
         packageId: parseInt(selectedPackage),
         startDate: selectedStartDate,
-        paymentMethod
+        paymentMethod,
+        idempotencyKey: idempotencyKeyRef.current,
       })
       toast.success("Gia hạn gói tập thành công!")
       setOpen(false)
       setStartDate(todayInputValue())
+      idempotencyKeyRef.current = crypto.randomUUID()
     } catch {
       toast.error("Có lỗi xảy ra, vui lòng thử lại.")
     } finally {

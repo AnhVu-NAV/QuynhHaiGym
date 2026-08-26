@@ -2,8 +2,9 @@
 
 import { db } from "@/db"
 import { auditLogs } from "@/db/schema"
-import { getCurrentUser } from "@/lib/auth"
+import { getCurrentUser, requireAdmin } from "@/lib/auth"
 import { and, desc, gte, sql, ilike, or } from "drizzle-orm"
+import { normalizePagination } from "@/lib/pagination"
 
 export async function logAction(
   action: "CREATE" | "UPDATE" | "DELETE",
@@ -28,8 +29,12 @@ export async function logAction(
 }
 
 export async function getAuditLogs(q?: string, page: number = 1, limit: number = 10) {
-  const offset = (page - 1) * limit;
-  const retentionCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  await requireAdmin()
+  const pagination = normalizePagination(page, limit, 10)
+  page = pagination.page
+  limit = pagination.limit
+  const { offset } = pagination
+  const retentionCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
 
   const searchClause = q
     ? or(
@@ -46,7 +51,16 @@ export async function getAuditLogs(q?: string, page: number = 1, limit: number =
       orderBy: [desc(auditLogs.createdAt)],
       limit,
       offset,
-      with: { user: true },
+      with: {
+        user: {
+          columns: {
+            id: true,
+            fullName: true,
+            email: true,
+            username: true,
+          },
+        },
+      },
     }),
     db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(whereClause),
   ])

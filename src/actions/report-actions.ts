@@ -3,8 +3,14 @@
 import { db } from "@/db"
 import { members, subscriptions } from "@/db/schema"
 import { eq, and, gte, lte, ilike, inArray, ne, or, sql } from "drizzle-orm"
+import { requireUser } from "@/lib/auth"
+import { normalizePagination } from "@/lib/pagination"
 
 export async function getExpiringMembers(q?: string, page: number = 1, limit: number = 20) {
+  await requireUser()
+  const pagination = normalizePagination(page, limit)
+  page = pagination.page
+  limit = pagination.limit
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
@@ -28,7 +34,7 @@ export async function getExpiringMembers(q?: string, page: number = 1, limit: nu
       with: { member: true, package: true },
       orderBy: [subscriptions.endDate],
       limit,
-      offset: (page - 1) * limit,
+      offset: pagination.offset,
     }),
     db.select({ count: sql<number>`count(*)` }).from(subscriptions).where(whereClause),
   ])
@@ -40,6 +46,7 @@ export async function getExpiringMembers(q?: string, page: number = 1, limit: nu
 }
 
 export async function getExportData() {
+  await requireUser()
   const membersData = await db.query.members.findMany({
     where: ne(members.status, "deleted"),
     with: {
@@ -50,13 +57,18 @@ export async function getExportData() {
   })
 
   // Format into a flat array of objects for CSV
+  const now = new Date()
   const data = membersData.map(m => {
-    const activeSub = m.subscriptions.find(s => s.status === 'active' && new Date(s.endDate) >= new Date())
+    const activeSub = m.subscriptions.find(s => (
+      s.status === 'active'
+      && new Date(s.startDate) <= now
+      && new Date(s.endDate) >= now
+    ))
     return {
       "Họ và tên": m.fullName,
       "Số điện thoại": m.phoneNumber,
       "Giới tính": m.gender === 'male' ? 'Nam' : m.gender === 'female' ? 'Nữ' : 'Khác',
-      "Trạng thái": m.status === 'active' ? 'Hoạt động' : 'Hết hạn',
+      "Trạng thái": activeSub ? 'Còn hạn' : 'Hết hạn',
       "Gói đang tập": activeSub ? activeSub.package.name : 'Không có',
       "Ngày hết hạn": activeSub ? new Date(activeSub.endDate).toLocaleDateString('vi-VN') : '',
       "Ngày gia nhập": new Date(m.joinDate).toLocaleDateString('vi-VN')

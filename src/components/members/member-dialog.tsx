@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createMember, updateMember } from "@/actions/member-actions"
-import { registerSubscription } from "@/actions/subscription-actions"
 import { startFaceEnrollment } from "@/actions/device-actions"
 import { toast } from "sonner"
 import { Pencil, UserPlus, Camera, ArrowLeft } from "lucide-react"
@@ -65,6 +64,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string>(memberData?.avatarUrl || "")
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const subscriptionIdempotencyKeyRef = useRef(crypto.randomUUID())
 
   useEffect(() => {
     return () => {
@@ -120,15 +120,17 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
     try {
       if (mode === "create") {
         const { enrollFace, ...memberValues } = values
-        const result = await createMember({ ...memberValues, avatarUrl })
-        
-        if (values.packageId && result.newMemberId) {
-          await registerSubscription({
-            memberId: result.newMemberId,
+        const result = await createMember(
+          { ...memberValues, avatarUrl },
+          values.packageId ? {
             packageId: parseInt(values.packageId),
             paymentMethod: values.paymentMethod || "cash",
-            startDate: new Date()
-          })
+            startDate: new Date(),
+            idempotencyKey: subscriptionIdempotencyKeyRef.current,
+          } : undefined,
+        )
+
+        if (values.packageId && result.newMemberId) {
           toast.success("Đã thêm hội viên và đăng ký gói thành công!")
         } else {
           toast.success("Đã thêm hội viên thành công!")
@@ -150,6 +152,7 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
         toast.success("Đã cập nhật hội viên!")
       }
       handleClose()
+      subscriptionIdempotencyKeyRef.current = crypto.randomUUID()
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Đã có lỗi xảy ra. Vui lòng thử lại.")
     } finally {
@@ -220,9 +223,13 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
               
               <CldUploadWidget 
                 uploadPreset="quynh_hai_gym_avatars" 
+                signatureEndpoint="/api/cloudinary/sign"
                 onSuccess={handleUploadSuccess}
                 options={{
                   maxFiles: 1,
+                  multiple: false,
+                  maxFileSize: 5_000_000,
+                  folder: "gym-avatars",
                   clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
                 }}
               >

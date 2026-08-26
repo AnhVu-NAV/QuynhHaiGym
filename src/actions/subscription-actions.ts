@@ -2,24 +2,51 @@
 
 import { db } from "@/db"
 import { subscriptions, transactions, membershipPackages, members } from "@/db/schema"
-import { eq, and, gte, desc } from "drizzle-orm"
+import { eq, and, gte, desc, ne } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 import { logAction } from "./audit-actions"
 import { queueMemberDeviceAccess } from "@/lib/member-device-access"
+import { requireUser } from "@/lib/auth"
+import { addCalendarMonthsClamped } from "@/lib/membership"
+import { z } from "zod"
+
+const subscriptionSchema = z.object({
+  memberId: z.number().int().positive(),
+  packageId: z.number().int().positive(),
+  startDate: z.coerce.date(),
+  paymentMethod: z.enum(["cash", "transfer"]),
+  idempotencyKey: z.string().uuid(),
+})
 
 export async function registerSubscription(data: {
   memberId: number
   packageId: number
   startDate: Date
   paymentMethod: string
+  idempotencyKey: string
 }) {
+  await requireUser()
+  const parsed = subscriptionSchema.safeParse(data)
+  if (!parsed.success) throw new Error("Thông tin đăng ký gói không hợp lệ")
+  data = parsed.data
+
+  const existingTransaction = await db.query.transactions.findFirst({
+    where: eq(transactions.idempotencyKey, data.idempotencyKey),
+  })
+  if (existingTransaction) return { success: true, duplicate: true }
+
   // 1. Get package details
   const pkg = await db.query.membershipPackages.findFirst({
-    where: eq(membershipPackages.id, data.packageId)
+    where: and(eq(membershipPackages.id, data.packageId), eq(membershipPackages.isActive, true))
   })
 
-  if (!pkg) throw new Error("Gói tập không tồn tại")
+  if (!pkg) throw new Error("Gói tập không tồn tại hoặc đã ngừng bán")
+
+  const member = await db.query.members.findFirst({
+    where: and(eq(members.id, data.memberId), ne(members.status, "deleted")),
+  })
+  if (!member) throw new Error("Hội viên không tồn tại hoặc đã ngừng hoạt động")
 
   const requestedStartDate = new Date(data.startDate)
   if (Number.isNaN(requestedStartDate.getTime())) {
@@ -50,36 +77,49 @@ export async function registerSubscription(data: {
     : requestedStartDate
 
   // 2. Calculate end date
-  const endDate = new Date(actualStartDate)
-  endDate.setMonth(endDate.getMonth() + pkg.durationMonths)
+  const endDate = addCalendarMonthsClamped(actualStartDate, pkg.durationMonths)
 
-  // 3. Create Subscription
-  const [newSub] = await db.insert(subscriptions).values({
-    memberId: data.memberId,
-    packageId: data.packageId,
-    startDate: actualStartDate,
-    endDate: endDate,
-    status: "active"
-  }).returning({ id: subscriptions.id })
-  
-  await logAction("CREATE", "SUBSCRIPTION", newSub.id, { memberId: data.memberId, package: pkg.name })
+  // Subscription, money and member state must either all succeed or all roll
+  // back. The unique idempotency key makes a retry safe.
+  let result: { subscriptionId: number; transactionId: number }
+  try {
+    result = await db.transaction(async (tx) => {
+    const [newSub] = await tx.insert(subscriptions).values({
+      memberId: data.memberId,
+      packageId: data.packageId,
+      startDate: actualStartDate,
+      endDate,
+      status: "active",
+    }).returning({ id: subscriptions.id })
 
-  // 4. Create Transaction for revenue tracking
-  const [newTx] = await db.insert(transactions).values({
-    memberId: data.memberId,
-    amount: pkg.price,
-    type: previousSub ? "renewal" : "registration",
-    paymentMethod: data.paymentMethod,
-    description: `${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`,
-    transactionDate: new Date()
-  }).returning({ id: transactions.id })
-  
-  await logAction("CREATE", "TRANSACTION", newTx.id, { amount: pkg.price, method: data.paymentMethod })
+    const [newTx] = await tx.insert(transactions).values({
+      memberId: data.memberId,
+      amount: pkg.price,
+      type: previousSub ? "renewal" : "registration",
+      paymentMethod: data.paymentMethod,
+      description: `${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`,
+      transactionDate: new Date(),
+      idempotencyKey: data.idempotencyKey,
+    }).returning({ id: transactions.id })
 
-  // 5. Update member status to active if they were expired/inactive
-  await db.update(members)
-    .set({ status: "active" })
-    .where(eq(members.id, data.memberId))
+    await tx.update(members).set({ status: "active" }).where(eq(members.id, data.memberId))
+      return { subscriptionId: newSub.id, transactionId: newTx.id }
+    })
+  } catch (error) {
+    // A simultaneous retry can lose the race after the pre-check above. The
+    // database unique key is authoritative, so return the already completed
+    // operation instead of charging or extending the member twice.
+    const completed = await db.query.transactions.findFirst({
+      where: eq(transactions.idempotencyKey, data.idempotencyKey),
+    })
+    if (completed) return { success: true, duplicate: true }
+    throw error
+  }
+
+  await Promise.all([
+    logAction("CREATE", "SUBSCRIPTION", result.subscriptionId, { memberId: data.memberId, package: pkg.name }),
+    logAction("CREATE", "TRANSACTION", result.transactionId, { amount: pkg.price, method: data.paymentMethod }),
+  ])
 
   // Renewal immediately re-enables every enrolled AI26 without asking the
   // member to register their face again.

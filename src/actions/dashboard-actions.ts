@@ -3,6 +3,7 @@
 import { db } from "@/db"
 import { members, transactions, checkIns, subscriptions } from "@/db/schema"
 import { eq, sql, gte, and, desc, inArray, ne } from "drizzle-orm"
+import { requireUser } from "@/lib/auth"
 
 const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
 
@@ -25,6 +26,7 @@ function vietnamBoundary(year: number, month: number, day = 1) {
 }
 
 export async function getDashboardStats() {
+  await requireUser()
   const now = new Date()
   const { year, month, day } = getVietnamDateParts(now)
   const today = vietnamBoundary(year, month, day)
@@ -41,7 +43,16 @@ export async function getDashboardStats() {
     monthlyRows,
   ] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(members).where(ne(members.status, "deleted")),
-    db.select({ count: sql<number>`count(*)::int` }).from(members).where(eq(members.status, "active")),
+    db.select({ count: sql<number>`count(*)::int` }).from(members).where(and(
+      eq(members.status, "active"),
+      sql<boolean>`exists (
+        select 1 from subscriptions active_subscription
+        where active_subscription.member_id = ${members.id}
+          and active_subscription.status = 'active'
+          and active_subscription.start_date <= now()
+          and active_subscription.end_date >= now()
+      )`,
+    )),
     db.select({ count: sql<number>`count(*)::int` })
       .from(checkIns)
       .where(and(
@@ -91,6 +102,7 @@ export async function getDashboardStats() {
 }
 
 export async function getExpiringMembers() {
+  await requireUser()
   const now = new Date()
   const sevenDaysFromNow = new Date()
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
@@ -124,6 +136,7 @@ export async function getExpiringMembers() {
 }
 
 export async function getRepeatedExpiredScanMembers() {
+  await requireUser()
   type RepeatedExpiredRow = {
     member_id: number
     full_name: string

@@ -51,7 +51,7 @@ export function ScheduleDialog({ trainers, members }: ScheduleDialogProps) {
         repeatUntil: repeatWeekly ? repeatUntil : startDate,
         repeatWeekly, weekdays, startTime, endTime, notes,
       })
-      if (result.error) return toast.error(result.error)
+      if ("error" in result) return toast.error(result.error)
       toast.success(`Đã tạo ${result.count} buổi tập.`)
       setOpen(false)
       setMemberId("")

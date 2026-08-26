@@ -133,9 +133,13 @@ export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
           
           <CldUploadWidget 
             uploadPreset="quynh_hai_gym_avatars" 
+            signatureEndpoint="/api/cloudinary/sign"
             onSuccess={handleUploadSuccess}
             options={{
               maxFiles: 1,
+              multiple: false,
+              maxFileSize: 5_000_000,
+              folder: "gym-avatars",
               clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
             }}
           >

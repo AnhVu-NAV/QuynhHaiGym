@@ -3,9 +3,15 @@
 import { db } from "@/db"
 import { transactions, members } from "@/db/schema"
 import { and, desc, ilike, or, eq, sql, inArray } from "drizzle-orm"
+import { requireUser } from "@/lib/auth"
+import { normalizePagination } from "@/lib/pagination"
 
 export async function getTransactions(q?: string, page: number = 1, limit: number = 20, paymentMethod = "all") {
-  const offset = (page - 1) * limit;
+  await requireUser()
+  const pagination = normalizePagination(page, limit)
+  page = pagination.page
+  limit = pagination.limit
+  const { offset } = pagination
 
   let searchClause = undefined;
   if (q) {

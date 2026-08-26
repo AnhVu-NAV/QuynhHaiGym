@@ -96,7 +96,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                   ?.filter((subscription) => subscription.status !== "cancelled")
                   .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
                 const faceMapping = member.deviceMappings?.[0]
-                const isExpired = latestSub ? new Date(latestSub.endDate) < new Date() : true;
+                const isExpired = latestSub
+                  ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
+                  : true;
                 return (
                   <Card key={member.id} className="relative gap-0 overflow-visible border-slate-200 p-3 shadow-sm min-[390px]:p-4">
                     <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 min-[390px]:right-3 min-[390px]:top-3">
@@ -152,7 +154,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         triggerClassName="h-9 w-full justify-center rounded-xl px-2 text-xs"
                       />
                       <Link
-                        href={`/my-card/${member.phoneNumber}`}
+                        href={`/my-card/${member.publicToken}`}
                         target="_blank"
                         className="inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-xl border border-indigo-200 bg-transparent px-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
                       >
@@ -189,7 +191,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                       ?.filter((subscription) => subscription.status !== "cancelled")
                       .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
                     const faceMapping = member.deviceMappings?.[0]
-                    const isExpired = latestSub ? new Date(latestSub.endDate) < new Date() : true;
+                    const isExpired = latestSub
+                      ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
+                      : true;
 
                     return (
                       <TableRow key={member.id} className="hover:bg-emerald-50/30">
@@ -242,7 +246,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                               activeSub={!isExpired && latestSub ? latestSub : undefined}
                             />
                             <Link
-                              href={`/my-card/${member.phoneNumber}`}
+                              href={`/my-card/${member.publicToken}`}
                               target="_blank"
                               className="inline-flex items-center justify-center whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-indigo-200 bg-transparent shadow-sm hover:bg-indigo-50 hover:text-indigo-900 text-indigo-600 h-8 rounded-md px-2 text-xs"
                             >

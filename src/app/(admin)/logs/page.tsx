@@ -4,8 +4,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { requireAdmin } from "@/lib/auth"
 
 export default async function AuditLogsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  await requireAdmin()
   const awaitedParams = await searchParams
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
@@ -18,7 +20,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Nhật ký hệ thống</h2>
-          <p className="text-muted-foreground mt-1">Theo dõi lịch sử thao tác của nhân viên trong 7 ngày gần nhất.</p>
+          <p className="text-muted-foreground mt-1">Theo dõi lịch sử thao tác của nhân viên trong 12 tháng gần nhất.</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <SearchInput placeholder="Tìm theo thao tác, dữ liệu..." />
