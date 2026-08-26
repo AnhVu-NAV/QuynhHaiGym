@@ -14,7 +14,8 @@ import {
   updateGymHoliday,
 } from "@/actions/settings-actions"
 import { toast } from "sonner"
-import { Building2, CalendarDays, Pencil, Plus, Save, Trash2, X } from "lucide-react"
+import { Building2, CalendarDays, Check, Lightbulb, Pencil, Plus, Save, Trash2, X } from "lucide-react"
+import { getUpcomingVietnamHolidaySuggestions, type VietnamHolidaySuggestion } from "@/lib/vietnam-holidays"
 
 type GymHoliday = Awaited<ReturnType<typeof getGymHolidays>>[number]
 
@@ -43,6 +44,7 @@ export default function SettingsPage() {
   const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null)
   const [isSavingHoliday, setIsSavingHoliday] = useState(false)
   const [deletingHolidayId, setDeletingHolidayId] = useState<number | null>(null)
+  const [holidaySuggestions, setHolidaySuggestions] = useState<VietnamHolidaySuggestion[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +56,7 @@ export default function SettingsPage() {
         setAccountNo(s.accountNo || "")
         setAccountName(s.accountName || "")
         setHolidays(holidayRows)
+        setHolidaySuggestions(getUpcomingVietnamHolidaySuggestions())
       } catch {
         if (!cancelled) toast.error("Không tải được cấu hình. Vui lòng thử lại.")
       }
@@ -93,6 +96,17 @@ export default function SettingsPage() {
     setHolidayName(holiday.name)
     setHolidayStart(holiday.startDate)
     setHolidayEnd(holiday.endDate)
+  }
+
+  function chooseHolidaySuggestion(suggestion: VietnamHolidaySuggestion) {
+    setEditingHolidayId(null)
+    setHolidayName(suggestion.name)
+    setHolidayStart(suggestion.startDate)
+    setHolidayEnd(suggestion.endDate)
+    requestAnimationFrame(() => {
+      document.getElementById("holiday-name")?.scrollIntoView({ behavior: "smooth", block: "center" })
+      document.getElementById("holiday-name")?.focus({ preventScroll: true })
+    })
   }
 
   async function refreshHolidays() {
@@ -234,6 +248,45 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+            <div className="mb-3 flex items-start gap-2">
+              <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div>
+                <h3 className="font-semibold text-amber-950">Gợi ý các dịp lễ sắp tới</h3>
+                <p className="mt-0.5 text-xs leading-5 text-amber-800">
+                  Lịch tham khảo theo các ngày lễ lớn của Việt Nam. Chọn một dịp rồi chỉnh lại nếu phòng tập nghỉ khác lịch chung.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {holidaySuggestions.map((suggestion) => {
+                const alreadyAdded = holidays.some((holiday) => (
+                  holiday.startDate === suggestion.startDate && holiday.endDate === suggestion.endDate
+                ))
+                return (
+                  <button
+                    key={suggestion.key}
+                    type="button"
+                    disabled={alreadyAdded}
+                    onClick={() => chooseHolidaySuggestion(suggestion)}
+                    className="flex min-h-24 items-start justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3 text-left shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-default disabled:opacity-60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-slate-900">{suggestion.name}</span>
+                      <span className="mt-1 block text-xs font-medium text-emerald-700">
+                        {formatDateOnly(suggestion.startDate)} – {formatDateOnly(suggestion.endDate)}
+                      </span>
+                      <span className="mt-1 block text-xs leading-4 text-slate-500">{suggestion.note}</span>
+                    </span>
+                    <span className="mt-0.5 shrink-0 rounded-lg bg-amber-100 p-1.5 text-amber-700">
+                      {alreadyAdded ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <form onSubmit={handleHolidaySave} className="rounded-2xl border bg-slate-50 p-4">
             <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_170px_170px]">
               <div className="space-y-2">
