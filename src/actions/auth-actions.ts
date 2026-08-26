@@ -10,8 +10,8 @@ import { requireUser } from "@/lib/auth"
 import { clearRateLimit, consumeRateLimit, getRequestIp } from "@/lib/rate-limit"
 import {
   createSessionToken,
+  getSessionDurationSeconds,
   SESSION_COOKIE,
-  SESSION_DURATION_SECONDS,
 } from "@/lib/session-token"
 
 export type LoginState = { error?: string } | undefined
@@ -51,7 +51,8 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
     clearRateLimit("login-ip", requestIp),
   ])
 
-  const expiresAt = Date.now() + SESSION_DURATION_SECONDS * 1000
+  const sessionDurationSeconds = getSessionDurationSeconds(user.role)
+  const expiresAt = Date.now() + sessionDurationSeconds * 1000
   const secret = process.env.SESSION_SECRET
   if (!secret || secret.length < 32) throw new Error("SESSION_SECRET phải có ít nhất 32 ký tự")
 
@@ -61,7 +62,7 @@ export async function login(_state: LoginState, formData: FormData): Promise<Log
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: SESSION_DURATION_SECONDS,
+    maxAge: sessionDurationSeconds,
     priority: "high",
   })
   redirect("/")

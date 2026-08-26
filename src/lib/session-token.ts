@@ -1,5 +1,12 @@
 export const SESSION_COOKIE = "gym_session"
-export const SESSION_DURATION_SECONDS = 60 * 60 * 12
+export const STAFF_SESSION_DURATION_SECONDS = 60 * 60 * 12
+export const ADMIN_SESSION_DURATION_SECONDS = 60 * 60 * 24 * 7
+
+export function getSessionDurationSeconds(role: string) {
+  return role === "admin"
+    ? ADMIN_SESSION_DURATION_SECONDS
+    : STAFF_SESSION_DURATION_SECONDS
+}
 
 export type SessionPayload = {
   userId: string
