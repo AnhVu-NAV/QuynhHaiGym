@@ -4,7 +4,15 @@ import { Input } from "./input"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useState, useEffect } from "react"
 
-export function SearchInput({ placeholder = "Tìm kiếm..." }: { placeholder?: string }) {
+const DEFAULT_RESET_PAGE_PARAMS = ["page"]
+
+export function SearchInput({
+  placeholder = "Tìm kiếm...",
+  resetPageParams = DEFAULT_RESET_PAGE_PARAMS,
+}: {
+  placeholder?: string
+  resetPageParams?: string[]
+}) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
@@ -23,14 +31,14 @@ export function SearchInput({ placeholder = "Tìm kiếm..." }: { placeholder?: 
         params.delete("q")
       }
       
-      params.set("page", "1")
+      resetPageParams.forEach((param) => params.set(param, "1"))
       
       const query = params.toString()
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     }, 400) // 400ms debounce
 
     return () => clearTimeout(delayDebounceFn)
-  }, [pathname, router, searchParams, searchTerm])
+  }, [pathname, resetPageParams, router, searchParams, searchTerm])
 
   return (
     <div className="relative w-full max-w-sm">

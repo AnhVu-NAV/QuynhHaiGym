@@ -276,7 +276,7 @@ export default async function DashboardPage() {
                       </Button>
                     </div>
                   ))}
-                  <Link href="/check-ins#failed-check-ins" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-rose-700 hover:text-rose-800">
+                  <Link href="/check-ins?view=failed#failed-check-ins" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-rose-700 hover:text-rose-800">
                     Xem check-in không hợp lệ <ArrowRight className="size-4" />
                   </Link>
                 </CardContent>

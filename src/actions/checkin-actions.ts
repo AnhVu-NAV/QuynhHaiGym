@@ -9,6 +9,32 @@ import { requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
+
+type CheckInFilters = {
+  source?: "ai26" | "web"
+  period?: "today" | "7d" | "30d"
+}
+
+function getVietnamDayStart(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VIETNAM_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ""
+
+  return new Date(`${value("year")}-${value("month")}-${value("day")}T00:00:00+07:00`)
+}
+
+function getPeriodStart(period?: CheckInFilters["period"]) {
+  if (!period) return undefined
+
+  const start = getVietnamDayStart()
+  const daysBack = period === "today" ? 0 : period === "7d" ? 6 : 29
+  return new Date(start.getTime() - daysBack * 86_400_000)
+}
 
 export async function processCheckIn(rawIdentifier: string) {
   const identifier = rawIdentifier.trim().replace(/^gym:/i, "")
@@ -98,7 +124,12 @@ export async function processCheckIn(rawIdentifier: string) {
   }
 }
 
-export async function getRecentCheckIns(q?: string, page: number = 1, limit: number = 10) {
+export async function getRecentCheckIns(
+  q?: string,
+  page: number = 1,
+  limit: number = 10,
+  filters: CheckInFilters = {},
+) {
   await requireUser()
   const pagination = normalizePagination(page, limit, 10)
   page = pagination.page
@@ -109,7 +140,12 @@ export async function getRecentCheckIns(q?: string, page: number = 1, limit: num
     ne(members.status, "deleted"),
     q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
   )
-  const whereClause = inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(memberClause))
+  const periodStart = getPeriodStart(filters.period)
+  const whereClause = and(
+    inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(memberClause)),
+    filters.source ? eq(checkIns.source, filters.source) : undefined,
+    periodStart ? gte(checkIns.checkInTime, periodStart) : undefined,
+  )
 
   const [data, [{ count }]] = await Promise.all([
     db.query.checkIns.findMany({
@@ -117,7 +153,7 @@ export async function getRecentCheckIns(q?: string, page: number = 1, limit: num
       orderBy: [desc(checkIns.checkInTime)],
       limit,
       offset,
-      with: { member: true },
+      with: { member: true, device: true },
     }),
     db.select({ count: sql<number>`count(*)` }).from(checkIns).where(whereClause),
   ])
@@ -136,7 +172,12 @@ export async function getMemberCheckIns(memberId: number) {
   return data
 }
 
-export async function getRecentFailedCheckIns(q?: string, page: number = 1, limit: number = 10) {
+export async function getRecentFailedCheckIns(
+  q?: string,
+  page: number = 1,
+  limit: number = 10,
+  filters: CheckInFilters = {},
+) {
   await requireUser()
   const pagination = normalizePagination(page, limit, 10)
   page = pagination.page
@@ -147,6 +188,7 @@ export async function getRecentFailedCheckIns(q?: string, page: number = 1, limi
     ne(members.status, "deleted"),
     q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
   ))
+  const periodStart = getPeriodStart(filters.period)
   const whereClause = and(
     or(isNull(failedCheckIns.memberId), inArray(failedCheckIns.memberId, visibleMemberIds)),
     q ? or(
@@ -154,6 +196,8 @@ export async function getRecentFailedCheckIns(q?: string, page: number = 1, limi
       ilike(failedCheckIns.reason, `%${q}%`),
       ilike(failedCheckIns.message, `%${q}%`),
     ) : undefined,
+    filters.source ? eq(failedCheckIns.source, filters.source) : undefined,
+    periodStart ? gte(failedCheckIns.attemptedAt, periodStart) : undefined,
   )
 
   const [data, [{ count }]] = await Promise.all([
@@ -170,5 +214,34 @@ export async function getRecentFailedCheckIns(q?: string, page: number = 1, limi
     data,
     totalPages: Math.ceil(Number(count) / limit),
     totalItems: Number(count),
+  }
+}
+
+export async function getCheckInSummary() {
+  await requireUser()
+  const today = getVietnamDayStart()
+  const visibleMemberIds = db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))
+
+  const [[valid], [failed]] = await Promise.all([
+    db.select({
+      total: sql<number>`count(*)::int`,
+      uniqueMembers: sql<number>`count(distinct ${checkIns.memberId})::int`,
+      ai26: sql<number>`count(*) filter (where ${checkIns.source} = 'ai26')::int`,
+    })
+      .from(checkIns)
+      .where(and(gte(checkIns.checkInTime, today), inArray(checkIns.memberId, visibleMemberIds))),
+    db.select({ total: sql<number>`count(*)::int` })
+      .from(failedCheckIns)
+      .where(and(
+        gte(failedCheckIns.attemptedAt, today),
+        or(isNull(failedCheckIns.memberId), inArray(failedCheckIns.memberId, visibleMemberIds)),
+      )),
+  ])
+
+  return {
+    validToday: Number(valid.total),
+    uniqueMembersToday: Number(valid.uniqueMembers),
+    ai26Today: Number(valid.ai26),
+    failedToday: Number(failed.total),
   }
 }
