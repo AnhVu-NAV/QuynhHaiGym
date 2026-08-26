@@ -28,7 +28,7 @@ function formatAxisValue(value: number) {
 export function RevenueChart({ data }: { data: RevenuePoint[] }) {
   return (
     <div className="h-[280px] w-full sm:h-[330px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="revenueBar" x1="0" y1="0" x2="0" y2="1">
