@@ -128,30 +128,32 @@ export default async function AdminCheckInsPage({
   ]
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-5 pb-6 sm:space-y-6">
-      <section className="relative isolate overflow-hidden rounded-[28px] bg-gradient-to-br from-slate-950 via-emerald-950 to-emerald-800 px-5 py-6 text-white shadow-[0_18px_50px_-26px_rgba(6,78,59,0.75)] sm:px-7 lg:px-8">
-        <div className="pointer-events-none absolute -right-16 -top-24 size-64 rounded-full bg-emerald-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 size-56 rounded-full bg-cyan-300/10 blur-3xl" />
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-emerald-50 backdrop-blur-sm">
-              <QrCode className="size-3.5" />
-              Giám sát ra vào theo thời gian thực
+    <div className="w-full space-y-5 pb-6 sm:space-y-6">
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3.5">
+          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200">
+            <QrCode className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Lịch sử Check-in</h1>
+              <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 lg:inline-flex">
+                Theo thời gian thực
+              </span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Lịch sử Check-in</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-emerald-50/80 sm:text-base">
+            <p className="text-sm leading-6 text-slate-500 sm:text-base">
               Theo dõi lượt vào phòng tập, nguồn xác thực và các trường hợp bị từ chối.
             </p>
           </div>
-          <Button
-            className="h-10 w-full border-white/15 bg-white text-emerald-900 shadow-sm hover:bg-emerald-50 sm:w-auto"
-            render={<Link href="/check-in" target="_blank" />}
-          >
-            <MonitorSmartphone className="size-4" />
-            Mở màn hình Check-in
-            <ExternalLink className="size-3.5 opacity-60" />
-          </Button>
         </div>
+        <Button
+          className="h-10 w-full bg-emerald-700 text-white shadow-sm hover:bg-emerald-800 sm:w-auto"
+          render={<Link href="/check-in" target="_blank" />}
+        >
+          <MonitorSmartphone className="size-4" />
+          Mở màn hình Check-in
+          <ExternalLink className="size-3.5 opacity-60" />
+        </Button>
       </section>
 
       <section aria-label="Tình hình check-in hôm nay" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
