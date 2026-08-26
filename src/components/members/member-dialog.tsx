@@ -55,9 +55,11 @@ type MemberDialogProps = {
     accountNo: string | null
     accountName: string | null
   }
+  cloudinaryApiKey?: string
+  cloudinaryCloudName?: string
 }
 
-export function MemberDialog({ mode, memberData, packages, settings }: MemberDialogProps) {
+export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName }: MemberDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<"form" | "qr">("form")
   const [pendingData, setPendingData] = useState<MemberFormValues | null>(null)
@@ -221,26 +223,29 @@ export function MemberDialog({ mode, memberData, packages, settings }: MemberDia
                 )}
               </div>
               
-              <CldUploadWidget 
-                uploadPreset="quynh_hai_gym_avatars" 
-                signatureEndpoint="/api/cloudinary/sign"
-                onSuccess={handleUploadSuccess}
-                options={{
-                  maxFiles: 1,
-                  multiple: false,
-                  maxFileSize: 5_000_000,
-                  folder: "gym-avatars",
-                  clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
-                }}
-              >
-                {({ open }) => {
-                  return (
+              {cloudinaryApiKey && cloudinaryCloudName ? (
+                <CldUploadWidget
+                  config={{ cloud: { apiKey: cloudinaryApiKey, cloudName: cloudinaryCloudName } }}
+                  uploadPreset="quynh_hai_gym_avatars"
+                  signatureEndpoint="/api/cloudinary/sign"
+                  onSuccess={handleUploadSuccess}
+                  options={{
+                    maxFiles: 1,
+                    multiple: false,
+                    maxFileSize: 5_000_000,
+                    folder: "gym-avatars",
+                    clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
+                  }}
+                >
+                  {({ open }) => (
                     <Button type="button" variant="outline" size="sm" onClick={() => open()}>
                       Chụp / Chọn ảnh
                     </Button>
-                  );
-                }}
-              </CldUploadWidget>
+                  )}
+                </CldUploadWidget>
+              ) : (
+                <Button type="button" variant="outline" size="sm" disabled>Ảnh chưa được cấu hình</Button>
+              )}
             </div>
 
             <form onSubmit={handleMemberFormSubmit} className="space-y-4 pb-1">

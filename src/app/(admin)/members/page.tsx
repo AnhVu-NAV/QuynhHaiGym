@@ -34,6 +34,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const settings = await getGymSettings()
 
   const activePackages = packages.filter(p => p.isActive)
+  const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
+  const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   const tabHref = (value: "valid" | "expired") => {
     const params = new URLSearchParams()
     params.set("membership", value)
@@ -51,7 +53,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           <p className="text-muted-foreground mt-1">Quản lý thông tin và thẻ hội viên.</p>
         </div>
         <div className="w-full sm:w-auto">
-          <MemberDialog mode="create" packages={activePackages} settings={settings || undefined} />
+          <MemberDialog mode="create" packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
         </div>
       </div>
 
@@ -102,7 +104,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 return (
                   <Card key={member.id} className="relative gap-0 overflow-visible border-slate-200 p-3 shadow-sm min-[390px]:p-4">
                     <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 min-[390px]:right-3 min-[390px]:top-3">
-                      <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} />
+                      <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                       {currentUser.role === "admin" && <DeleteMemberButton id={member.id} />}
                     </div>
                     <div className="flex min-w-0 items-start gap-2.5 pr-[4.75rem] min-[390px]:gap-3 min-[390px]:pr-20">
@@ -252,7 +254,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                             >
                               <ExternalLink className="h-4 w-4 mr-1" /> Thẻ Ảo
                             </Link>
-                            <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} />
+                            <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                             {currentUser.role === "admin" && <DeleteMemberButton id={member.id} />}
                           </div>
                         </TableCell>

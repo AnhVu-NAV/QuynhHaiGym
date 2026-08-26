@@ -23,6 +23,8 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
   const status = typeof awaitedParams.status === 'string' ? awaitedParams.status : "all"
 
   const { data: trainers, totalPages, totalItems } = await getTrainers(q, page, limit, false, status)
+  const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
+  const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
 
   return (
     <div className="space-y-6">
@@ -42,7 +44,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
               { value: "inactive", label: "Đã nghỉ" },
             ]}
           />
-          <TrainerDialog mode="create" />
+          <TrainerDialog mode="create" cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
         </div>
       </div>
 
@@ -83,7 +85,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t flex justify-end gap-2">
-                    <TrainerDialog mode="edit" trainerData={trainer} />
+                    <TrainerDialog mode="edit" trainerData={trainer} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                     <DeleteTrainerButton id={trainer.id} />
                   </div>
                 </Card>
@@ -137,7 +139,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
                         )}
                       </TableCell>
                       <TableCell className="text-right space-x-2">
-                        <TrainerDialog mode="edit" trainerData={trainer} />
+                        <TrainerDialog mode="edit" trainerData={trainer} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                         <DeleteTrainerButton id={trainer.id} />
                       </TableCell>
                     </TableRow>

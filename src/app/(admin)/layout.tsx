@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { LogoutButton } from "@/components/auth/logout-button"
 import { requireUser } from "@/lib/auth"
 import { ChangePasswordButton } from "@/components/auth/change-password-button"
+import { SessionRefresher } from "@/components/auth/session-refresher"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
@@ -19,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <SidebarProvider>
+      <SessionRefresher />
       <AppSidebar role={user.role} />
       <main className="flex h-svh w-full min-w-0 flex-col bg-transparent">
         <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-4 border-b border-white/60 bg-white/80 px-4 shadow-sm backdrop-blur-xl sm:px-6">

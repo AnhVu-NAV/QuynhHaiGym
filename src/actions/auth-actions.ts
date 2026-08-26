@@ -73,6 +73,29 @@ export async function logout() {
   redirect("/sign-in")
 }
 
+export async function refreshSession() {
+  const user = await requireUser()
+  const durationSeconds = getSessionDurationSeconds(user.role)
+  const expiresAt = Date.now() + durationSeconds * 1000
+  const secret = process.env.SESSION_SECRET
+  if (!secret || secret.length < 32) throw new Error("SESSION_SECRET phải có ít nhất 32 ký tự")
+
+  const token = await createSessionToken({
+    userId: user.id,
+    sessionVersion: user.sessionVersion,
+    expiresAt,
+  }, secret)
+  ;(await cookies()).set(SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: durationSeconds,
+    priority: "high",
+  })
+  return { success: true, expiresAt }
+}
+
 export async function changeOwnPassword(formData: FormData) {
   const user = await requireUser()
   const currentPassword = String(formData.get("currentPassword") ?? "")

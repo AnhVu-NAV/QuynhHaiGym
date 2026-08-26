@@ -35,6 +35,8 @@ type TrainerFormValues = z.output<typeof formSchema>
 
 type TrainerDialogProps = {
   mode: "create" | "edit"
+  cloudinaryApiKey?: string
+  cloudinaryCloudName?: string
   trainerData?: {
     id: number
     fullName: string
@@ -48,7 +50,7 @@ type TrainerDialogProps = {
   }
 }
 
-export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
+export function TrainerDialog({ mode, trainerData, cloudinaryApiKey, cloudinaryCloudName }: TrainerDialogProps) {
   const [open, setOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string>(trainerData?.avatarUrl || "")
 
@@ -131,31 +133,29 @@ export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
             )}
           </div>
           
-          <CldUploadWidget 
-            uploadPreset="quynh_hai_gym_avatars" 
-            signatureEndpoint="/api/cloudinary/sign"
-            onSuccess={handleUploadSuccess}
-            options={{
-              maxFiles: 1,
-              multiple: false,
-              maxFileSize: 5_000_000,
-              folder: "gym-avatars",
-              clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
-            }}
-          >
-            {({ open }) => {
-              return (
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => open()}
-                >
+          {cloudinaryApiKey && cloudinaryCloudName ? (
+            <CldUploadWidget
+              config={{ cloud: { apiKey: cloudinaryApiKey, cloudName: cloudinaryCloudName } }}
+              uploadPreset="quynh_hai_gym_avatars"
+              signatureEndpoint="/api/cloudinary/sign"
+              onSuccess={handleUploadSuccess}
+              options={{
+                maxFiles: 1,
+                multiple: false,
+                maxFileSize: 5_000_000,
+                folder: "gym-avatars",
+                clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
+              }}
+            >
+              {({ open }) => (
+                <Button type="button" variant="outline" size="sm" onClick={() => open()}>
                   Chụp / Chọn ảnh
                 </Button>
-              );
-            }}
-          </CldUploadWidget>
+              )}
+            </CldUploadWidget>
+          ) : (
+            <Button type="button" variant="outline" size="sm" disabled>Ảnh chưa được cấu hình</Button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
