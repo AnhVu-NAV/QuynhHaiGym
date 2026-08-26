@@ -11,6 +11,7 @@ import { requireAdmin, requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
 import { z } from "zod"
 import { addCalendarMonthsClamped } from "@/lib/membership"
+import type { BatchItem } from "drizzle-orm/batch"
 
 const memberCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(255),
@@ -29,6 +30,16 @@ const initialSubscriptionSchema = z.object({
   paymentMethod: z.enum(["cash", "transfer"]),
   idempotencyKey: z.string().uuid(),
 })
+
+function getDatabaseErrorCode(error: unknown) {
+  let current = error
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!current || typeof current !== "object") return ""
+    if ("code" in current && typeof current.code === "string") return current.code
+    current = "cause" in current ? current.cause : null
+  }
+  return ""
+}
 
 export async function getMembers(q?: string, page: number = 1, limit: number = 20, membership = "valid") {
   await requireUser()
@@ -97,8 +108,18 @@ export async function createMember(data: {
   idempotencyKey: string
 }) {
   await requireUser()
-  data = memberCreateSchema.parse(data)
-  const subscriptionInput = initialSubscription ? initialSubscriptionSchema.parse(initialSubscription) : null
+  const parsedMember = memberCreateSchema.safeParse(data)
+  if (!parsedMember.success) {
+    return { success: false, error: "Thông tin hội viên không hợp lệ. Hãy kiểm tra lại họ tên và số điện thoại." }
+  }
+  data = parsedMember.data
+  const parsedSubscription = initialSubscription
+    ? initialSubscriptionSchema.safeParse(initialSubscription)
+    : null
+  if (parsedSubscription && !parsedSubscription.success) {
+    return { success: false, error: "Thông tin gói tập hoặc thanh toán không hợp lệ." }
+  }
+  const subscriptionInput = parsedSubscription?.data || null
   if (subscriptionInput) {
     const existing = await db.query.transactions.findFirst({
       where: eq(transactions.idempotencyKey, subscriptionInput.idempotencyKey),
@@ -108,43 +129,63 @@ export async function createMember(data: {
   const pkg = subscriptionInput ? await db.query.membershipPackages.findFirst({
     where: and(eq(membershipPackages.id, subscriptionInput.packageId), eq(membershipPackages.isActive, true)),
   }) : null
-  if (subscriptionInput && !pkg) throw new Error("Gói tập không tồn tại hoặc đã ngừng bán")
+  if (subscriptionInput && !pkg) {
+    return { success: false, error: "Gói tập không tồn tại hoặc đã ngừng bán." }
+  }
 
   let result: { memberId: number; subscriptionId: number | null; transactionId: number | null }
   try {
-    result = await db.transaction(async (tx) => {
-    const [newMember] = await tx.insert(members).values({
-      fullName: data.fullName,
-      phoneNumber: data.phoneNumber,
-      gender: data.gender || null,
-      avatarUrl: data.avatarUrl || null,
-      status: "active",
-    }).returning({ id: members.id })
-
-    let subscriptionId: number | null = null
-    let transactionId: number | null = null
     if (subscriptionInput && pkg) {
+      type CreatedRow = {
+        member_id: number
+        subscription_id: number
+        transaction_id: number
+      }
       const endDate = addCalendarMonthsClamped(subscriptionInput.startDate, pkg.durationMonths)
-      const [subscription] = await tx.insert(subscriptions).values({
-        memberId: newMember.id,
-        packageId: pkg.id,
-        startDate: subscriptionInput.startDate,
-        endDate,
+      const created = await db.execute<CreatedRow>(sql`
+        with new_member as (
+          insert into members (full_name, phone_number, gender, avatar_url, status)
+          values (${data.fullName}, ${data.phoneNumber}, ${data.gender || null}, ${data.avatarUrl || null}, 'active')
+          returning id
+        ), new_subscription as (
+          insert into subscriptions (member_id, package_id, start_date, end_date, status)
+          select id, ${pkg.id}, ${subscriptionInput.startDate}, ${endDate}, 'active'
+          from new_member
+          returning id, member_id
+        ), new_transaction as (
+          insert into transactions (
+            member_id, amount, type, payment_method, description, idempotency_key
+          )
+          select id, ${pkg.price}, 'registration', ${subscriptionInput.paymentMethod},
+            ${`Đăng ký gói: ${pkg.name}`}, ${subscriptionInput.idempotencyKey}
+          from new_member
+          returning id, member_id
+        )
+        select
+          new_member.id::int as member_id,
+          new_subscription.id::int as subscription_id,
+          new_transaction.id::int as transaction_id
+        from new_member
+        join new_subscription on new_subscription.member_id = new_member.id
+        join new_transaction on new_transaction.member_id = new_member.id
+      `)
+      const row = created.rows[0]
+      if (!row) throw new Error("Không thể tạo hồ sơ hội viên")
+      result = {
+        memberId: Number(row.member_id),
+        subscriptionId: Number(row.subscription_id),
+        transactionId: Number(row.transaction_id),
+      }
+    } else {
+      const [newMember] = await db.insert(members).values({
+        fullName: data.fullName,
+        phoneNumber: data.phoneNumber,
+        gender: data.gender || null,
+        avatarUrl: data.avatarUrl || null,
         status: "active",
-      }).returning({ id: subscriptions.id })
-      const [transaction] = await tx.insert(transactions).values({
-        memberId: newMember.id,
-        amount: pkg.price,
-        type: "registration",
-        paymentMethod: subscriptionInput.paymentMethod,
-        description: `Đăng ký gói: ${pkg.name}`,
-        idempotencyKey: subscriptionInput.idempotencyKey,
-      }).returning({ id: transactions.id })
-      subscriptionId = subscription.id
-      transactionId = transaction.id
+      }).returning({ id: members.id })
+      result = { memberId: newMember.id, subscriptionId: null, transactionId: null }
     }
-      return { memberId: newMember.id, subscriptionId, transactionId }
-    })
   } catch (error) {
     if (subscriptionInput) {
       const completed = await db.query.transactions.findFirst({
@@ -152,7 +193,12 @@ export async function createMember(data: {
       })
       if (completed) return { success: true, newMemberId: completed.memberId, duplicate: true }
     }
-    throw error
+    const errorCode = getDatabaseErrorCode(error)
+    if (errorCode === "23505") {
+      return { success: false, error: "Số điện thoại này đã thuộc về một hội viên khác." }
+    }
+    console.error("Create member failed", error)
+    return { success: false, error: "Không thể thêm hội viên lúc này. Vui lòng thử lại." }
   }
   
   await logAction("CREATE", "MEMBER", result.memberId, { fullName: data.fullName, phoneNumber: data.phoneNumber })
@@ -290,16 +336,17 @@ export async function deleteMember(id: number) {
     return result.matched ? [{ id: event.id, payload: result.value as Record<string, unknown> }] : []
   })
 
-  await db.transaction(async (tx) => {
-    await tx.update(subscriptions).set({ status: "cancelled" }).where(eq(subscriptions.memberId, id))
-    await tx.update(ptSessions).set({ status: "cancelled", notes: null }).where(eq(ptSessions.memberId, id))
-    await tx.update(classBookings).set({ status: "cancelled" }).where(eq(classBookings.memberId, id))
-
+  const operations: BatchItem<"pg">[] = [
+    db.update(subscriptions).set({ status: "cancelled" }).where(eq(subscriptions.memberId, id)),
+    db.update(ptSessions).set({ status: "cancelled", notes: null }).where(eq(ptSessions.memberId, id)),
+    db.update(classBookings).set({ status: "cancelled" }).where(eq(classBookings.memberId, id)),
     // Remove commands containing the old name, then queue anonymous lock/delete
     // commands so an offline terminal is cleaned on its next connection.
-    await tx.delete(deviceCommands).where(eq(deviceCommands.memberId, id))
-    if (member.deviceMappings.length) {
-      await tx.insert(deviceCommands).values(member.deviceMappings.flatMap((mapping) => [
+    db.delete(deviceCommands).where(eq(deviceCommands.memberId, id)),
+  ]
+  if (member.deviceMappings.length) {
+    operations.push(
+      db.insert(deviceCommands).values(member.deviceMappings.flatMap((mapping) => [
         {
           deviceId: mapping.deviceId,
           memberId: id,
@@ -314,23 +361,23 @@ export async function deleteMember(id: number) {
           payload: { cmd: "deleteuser", enrollid: mapping.enrollId, backupnum: 13 },
           status: "pending",
         },
-      ]))
-      await tx.update(deviceMemberMappings).set({
+      ])),
+      db.update(deviceMemberMappings).set({
         faceStatus: "pending_delete",
         accessEnabled: false,
         updatedAt: new Date(),
-      }).where(eq(deviceMemberMappings.memberId, id))
-
-      for (const event of anonymizedEvents) {
-        await tx.update(deviceEvents).set({ payload: event.payload }).where(eq(deviceEvents.id, event.id))
-      }
+      }).where(eq(deviceMemberMappings.memberId, id)),
+    )
+    for (const event of anonymizedEvents) {
+      operations.push(db.update(deviceEvents).set({ payload: event.payload }).where(eq(deviceEvents.id, event.id)))
     }
-
-    await tx.update(auditLogs).set({ details: JSON.stringify({ anonymized: true }) }).where(and(
+  }
+  operations.push(
+    db.update(auditLogs).set({ details: JSON.stringify({ anonymized: true }) }).where(and(
       eq(auditLogs.entityType, "MEMBER"),
       eq(auditLogs.entityId, String(id)),
-    ))
-    await tx.update(members).set({
+    )),
+    db.update(members).set({
       fullName: anonymousName,
       phoneNumber: anonymousPhone,
       gender: null,
@@ -338,8 +385,9 @@ export async function deleteMember(id: number) {
       avatarUrl: null,
       status: "deleted",
       updatedAt: new Date(),
-    }).where(eq(members.id, id))
-  })
+    }).where(eq(members.id, id)),
+  )
+  await db.batch(operations as [BatchItem<"pg">, ...BatchItem<"pg">[]])
 
   await logAction("DELETE", "MEMBER", id, { anonymized: true })
   

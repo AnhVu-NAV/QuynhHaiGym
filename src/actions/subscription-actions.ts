@@ -79,32 +79,33 @@ export async function registerSubscription(data: {
   // 2. Calculate end date
   const endDate = addCalendarMonthsClamped(actualStartDate, pkg.durationMonths)
 
-  // Subscription, money and member state must either all succeed or all roll
-  // back. The unique idempotency key makes a retry safe.
+  // Neon HTTP supports atomic batch transactions rather than interactive
+  // db.transaction callbacks. The unique idempotency key makes a retry safe.
   let result: { subscriptionId: number; transactionId: number }
   try {
-    result = await db.transaction(async (tx) => {
-    const [newSub] = await tx.insert(subscriptions).values({
-      memberId: data.memberId,
-      packageId: data.packageId,
-      startDate: actualStartDate,
-      endDate,
-      status: "active",
-    }).returning({ id: subscriptions.id })
-
-    const [newTx] = await tx.insert(transactions).values({
-      memberId: data.memberId,
-      amount: pkg.price,
-      type: previousSub ? "renewal" : "registration",
-      paymentMethod: data.paymentMethod,
-      description: `${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`,
-      transactionDate: new Date(),
-      idempotencyKey: data.idempotencyKey,
-    }).returning({ id: transactions.id })
-
-    await tx.update(members).set({ status: "active" }).where(eq(members.id, data.memberId))
-      return { subscriptionId: newSub.id, transactionId: newTx.id }
-    })
+    const [newSubs, newTransactions] = await db.batch([
+      db.insert(subscriptions).values({
+        memberId: data.memberId,
+        packageId: data.packageId,
+        startDate: actualStartDate,
+        endDate,
+        status: "active",
+      }).returning({ id: subscriptions.id }),
+      db.insert(transactions).values({
+        memberId: data.memberId,
+        amount: pkg.price,
+        type: previousSub ? "renewal" : "registration",
+        paymentMethod: data.paymentMethod,
+        description: `${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`,
+        transactionDate: new Date(),
+        idempotencyKey: data.idempotencyKey,
+      }).returning({ id: transactions.id }),
+      db.update(members).set({ status: "active" }).where(eq(members.id, data.memberId)),
+    ])
+    const newSub = newSubs[0]
+    const newTransaction = newTransactions[0]
+    if (!newSub || !newTransaction) throw new Error("Không thể ghi nhận giao dịch gia hạn")
+    result = { subscriptionId: newSub.id, transactionId: newTransaction.id }
   } catch (error) {
     // A simultaneous retry can lose the race after the pre-check above. The
     // database unique key is authoritative, so return the already completed

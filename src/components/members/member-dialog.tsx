@@ -131,6 +131,10 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
             idempotencyKey: subscriptionIdempotencyKeyRef.current,
           } : undefined,
         )
+        if (!result.success) {
+          toast.error(result.error)
+          return
+        }
 
         if (values.packageId && result.newMemberId) {
           toast.success("Đã thêm hội viên và đăng ký gói thành công!")

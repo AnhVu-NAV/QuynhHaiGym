@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto"
 import { db } from "@/db"
 import { members, ptSessions, subscriptions, trainers } from "@/db/schema"
-import { and, eq, gt, gte, ilike, inArray, lt, lte, ne, or } from "drizzle-orm"
+import { and, eq, gte, ilike, inArray, lt, lte, ne, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { requireUser } from "@/lib/auth"
 import { sql } from "drizzle-orm"
@@ -133,42 +133,82 @@ export async function createRecurringPTSessions(data: {
   const rangeStart = occurrences[0].startTime
   const rangeEnd = occurrences.at(-1)!.endTime
   const seriesId = occurrences.length > 1 ? randomUUID() : null
-  const result = await db.transaction(async (tx) => {
-    // Serialize bookings for this trainer/member pair so two receptionists
-    // cannot both pass the availability check at the same time.
-    await tx.execute(sql`select pg_advisory_xact_lock(20, ${data.trainerId})`)
-    await tx.execute(sql`select pg_advisory_xact_lock(21, ${data.memberId})`)
-
-    const existing = await tx.select().from(ptSessions).where(and(
-      ne(ptSessions.status, "cancelled"),
-      lt(ptSessions.startTime, rangeEnd),
-      gt(ptSessions.endTime, rangeStart),
-      or(eq(ptSessions.trainerId, data.trainerId), eq(ptSessions.memberId, data.memberId)),
-    ))
-
-    for (const occurrence of occurrences) {
-      if (existing.some((session) => session.memberId === data.memberId && session.startTime < occurrence.endTime && session.endTime > occurrence.startTime)) {
-        return { error: `Hội viên đã có lịch trùng vào ${occurrence.startTime.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` }
-      }
-      const trainerLoad = existing.filter((session) =>
-        session.trainerId === data.trainerId && session.startTime < occurrence.endTime && session.endTime > occurrence.startTime
-      ).length
-      if (trainerLoad >= trainer.maxConcurrentClients) {
-        return { error: `${trainer.fullName} đã đủ ${trainer.maxConcurrentClients} người trong khung ${occurrence.startTime.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` }
-      }
-    }
-
-    await tx.insert(ptSessions).values(occurrences.map((occurrence) => ({
-      trainerId: data.trainerId,
-      memberId: data.memberId,
-      startTime: occurrence.startTime,
-      endTime: occurrence.endTime,
-      status: "scheduled",
-      notes: data.notes?.trim() || null,
-      seriesId,
-    })))
-    return { success: true, count: occurrences.length }
+  const proposedValues = sql.join(
+    occurrences.map((occurrence) => sql`(${occurrence.startTime}::timestamp, ${occurrence.endTime}::timestamp)`),
+    sql`, `,
+  )
+  type ScheduleResultRow = {
+    member_conflict_at: Date | string | null
+    trainer_conflict_at: Date | string | null
+    inserted_count: number
+  }
+  // One statement keeps the overlap checks and inserts atomic on Neon HTTP.
+  // The two advisory locks serialize concurrent bookings for the PT/member.
+  const inserted = await db.execute<ScheduleResultRow>(sql`
+    with trainer_lock as materialized (
+      select pg_advisory_xact_lock(20, ${data.trainerId})
+    ), member_lock as materialized (
+      select pg_advisory_xact_lock(21, ${data.memberId})
+    ), proposed(start_time, end_time) as materialized (
+      values ${proposedValues}
+    ), existing as materialized (
+      select s.trainer_id, s.member_id, s.start_time, s.end_time
+      from pt_sessions s
+      cross join trainer_lock
+      cross join member_lock
+      where s.status <> 'cancelled'
+        and s.start_time < ${rangeEnd}
+        and s.end_time > ${rangeStart}
+        and (s.trainer_id = ${data.trainerId} or s.member_id = ${data.memberId})
+    ), member_conflict as materialized (
+      select p.start_time
+      from proposed p
+      where exists (
+        select 1 from existing e
+        where e.member_id = ${data.memberId}
+          and e.start_time < p.end_time
+          and e.end_time > p.start_time
+      )
+      order by p.start_time
+      limit 1
+    ), trainer_conflict as materialized (
+      select p.start_time
+      from proposed p
+      where (
+        select count(*) from existing e
+        where e.trainer_id = ${data.trainerId}
+          and e.start_time < p.end_time
+          and e.end_time > p.start_time
+      ) >= ${trainer.maxConcurrentClients}
+      order by p.start_time
+      limit 1
+    ), inserted as (
+      insert into pt_sessions (
+        trainer_id, member_id, start_time, end_time, status, notes, series_id
+      )
+      select ${data.trainerId}, ${data.memberId}, p.start_time, p.end_time,
+        'scheduled', ${data.notes?.trim() || null}, ${seriesId}
+      from proposed p
+      where not exists (select 1 from member_conflict)
+        and not exists (select 1 from trainer_conflict)
+      returning id
+    )
+    select
+      (select start_time from member_conflict) as member_conflict_at,
+      (select start_time from trainer_conflict) as trainer_conflict_at,
+      (select count(*)::int from inserted) as inserted_count
+  `)
+  const row = inserted.rows[0]
+  const formatConflict = (value: Date | string) => new Date(value).toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
   })
+  const result = row?.member_conflict_at
+    ? { error: `Hội viên đã có lịch trùng vào ${formatConflict(row.member_conflict_at)}.` }
+    : row?.trainer_conflict_at
+      ? { error: `${trainer.fullName} đã đủ ${trainer.maxConcurrentClients} người trong khung ${formatConflict(row.trainer_conflict_at)}.` }
+      : Number(row?.inserted_count || 0) === occurrences.length
+        ? { success: true, count: occurrences.length }
+        : { error: "Không thể tạo đủ lịch tập. Vui lòng thử lại." }
   revalidatePath("/schedule")
   if (result.success) await logAction("CREATE", "SESSION", seriesId || `${data.trainerId}:${data.memberId}`, { count: result.count })
   return result

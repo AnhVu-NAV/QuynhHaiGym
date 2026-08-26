@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/db"
-import { classes, classSessions, classBookings, members, subscriptions } from "@/db/schema"
+import { classes, classSessions } from "@/db/schema"
 import { and, eq, desc, ilike, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { requireUser } from "@/lib/auth"
@@ -100,54 +100,84 @@ export async function bookClassSession(sessionId: number, memberId: number) {
   z.number().int().positive().parse(sessionId)
   z.number().int().positive().parse(memberId)
 
-  const result = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(10, ${sessionId})`)
-    const sessionRows = await tx.execute<{ capacity: number; status: string; is_active: boolean }>(sql`
-      select c.capacity, cs.status, c.is_active
+  type BookingRow = {
+    session_valid: boolean
+    member_valid: boolean
+    duplicate_booking: boolean
+    class_full: boolean
+    inserted: boolean
+  }
+  // A single SQL statement is one Neon HTTP transaction. The advisory lock
+  // serializes capacity checks for this class session across Vercel instances.
+  const bookingResult = await db.execute<BookingRow>(sql`
+    with booking_lock as materialized (
+      select pg_advisory_xact_lock(10, ${sessionId})
+    ), session_info as materialized (
+      select c.capacity
       from class_sessions cs
       join classes c on c.id = cs.class_id
+      cross join booking_lock
       where cs.id = ${sessionId}
-      for update
-    `)
-    const session = sessionRows.rows[0]
-    if (!session || session.status !== "scheduled" || !session.is_active) {
-      return { error: "Lớp học không còn nhận đăng ký." }
-    }
-
-    const memberRows = await tx.select({ id: members.id }).from(members).where(and(
-      eq(members.id, memberId),
-      eq(members.status, "active"),
-      sql<boolean>`exists (
-        select 1 from ${subscriptions}
-        where ${subscriptions.memberId} = ${memberId}
-          and ${subscriptions.status} = 'active'
-          and ${subscriptions.startDate} <= now()
-          and ${subscriptions.endDate} >= now()
-      )`,
-    )).limit(1)
-    if (!memberRows.length) return { error: "Hội viên không có gói tập còn hiệu lực." }
-
-    const existingBooking = await tx.select({ status: classBookings.status }).from(classBookings).where(and(
-      eq(classBookings.sessionId, sessionId),
-      eq(classBookings.memberId, memberId),
-    )).limit(1)
-    if (existingBooking[0]?.status === "booked") return { success: true, duplicate: true }
-
-    const bookingCount = await tx.execute<{ count: number }>(sql`
-      select count(*)::int as count from class_bookings
-      where session_id = ${sessionId} and status = 'booked'
-    `)
-    if (Number(bookingCount.rows[0]?.count || 0) >= Number(session.capacity)) {
-      return { error: "Lớp học đã đủ số người." }
-    }
-
-    await tx.insert(classBookings).values({ sessionId, memberId, status: "booked" })
-      .onConflictDoUpdate({
-        target: [classBookings.sessionId, classBookings.memberId],
-        set: { status: "booked", bookedAt: new Date() },
-      })
-    return { success: true }
-  })
+        and cs.status = 'scheduled'
+        and c.is_active = true
+    ), valid_member as materialized (
+      select m.id
+      from members m
+      cross join booking_lock
+      where m.id = ${memberId}
+        and m.status = 'active'
+        and exists (
+          select 1 from subscriptions s
+          where s.member_id = m.id
+            and s.status = 'active'
+            and s.start_date <= now()
+            and s.end_date >= now()
+        )
+    ), existing_booking as materialized (
+      select 1
+      from class_bookings cb
+      cross join booking_lock
+      where cb.session_id = ${sessionId}
+        and cb.member_id = ${memberId}
+        and cb.status = 'booked'
+    ), booking_count as materialized (
+      select count(*)::int as count
+      from class_bookings cb
+      cross join booking_lock
+      where cb.session_id = ${sessionId} and cb.status = 'booked'
+    ), upserted as (
+      insert into class_bookings (session_id, member_id, status)
+      select ${sessionId}, ${memberId}, 'booked'
+      where exists (select 1 from session_info)
+        and exists (select 1 from valid_member)
+        and not exists (select 1 from existing_booking)
+        and (select count from booking_count) < (select capacity from session_info)
+      on conflict (session_id, member_id) do update
+        set status = 'booked', booked_at = now()
+      returning id
+    )
+    select
+      exists (select 1 from session_info) as session_valid,
+      exists (select 1 from valid_member) as member_valid,
+      exists (select 1 from existing_booking) as duplicate_booking,
+      coalesce(
+        (select count from booking_count) >= (select capacity from session_info),
+        false
+      ) as class_full,
+      exists (select 1 from upserted) as inserted
+  `)
+  const row = bookingResult.rows[0]
+  const result = !row?.session_valid
+    ? { error: "Lớp học không còn nhận đăng ký." }
+    : !row.member_valid
+      ? { error: "Hội viên không có gói tập còn hiệu lực." }
+      : row.duplicate_booking
+        ? { success: true, duplicate: true }
+        : row.class_full
+          ? { error: "Lớp học đã đủ số người." }
+          : row.inserted
+            ? { success: true }
+            : { error: "Không thể đăng ký lớp học. Vui lòng thử lại." }
   revalidatePath("/classes")
   if (result.success) await logAction("CREATE", "SESSION", sessionId, { memberId, booking: true })
   return result
