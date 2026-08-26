@@ -9,6 +9,7 @@ import { logAction } from "./audit-actions"
 import { queueMemberDeviceAccess } from "@/lib/member-device-access"
 import { requireUser } from "@/lib/auth"
 import { addCalendarMonthsClamped } from "@/lib/membership"
+import { getHolidayAdjustedEndDate } from "@/lib/holiday-preservation"
 import { z } from "zod"
 
 const subscriptionSchema = z.object({
@@ -77,7 +78,8 @@ export async function registerSubscription(data: {
     : requestedStartDate
 
   // 2. Calculate end date
-  const endDate = addCalendarMonthsClamped(actualStartDate, pkg.durationMonths)
+  const baseEndDate = addCalendarMonthsClamped(actualStartDate, pkg.durationMonths)
+  const { endDate } = await getHolidayAdjustedEndDate(actualStartDate, baseEndDate)
 
   // Neon HTTP supports atomic batch transactions rather than interactive
   // db.transaction callbacks. The unique idempotency key makes a retry safe.
@@ -88,6 +90,7 @@ export async function registerSubscription(data: {
         memberId: data.memberId,
         packageId: data.packageId,
         startDate: actualStartDate,
+        baseEndDate,
         endDate,
         status: "active",
       }).returning({ id: subscriptions.id }),

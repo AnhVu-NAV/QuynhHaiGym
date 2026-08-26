@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, integer, boolean, text, uniqueIndex, index, jsonb, doublePrecision, uuid } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, timestamp, integer, boolean, text, uniqueIndex, index, jsonb, doublePrecision, uuid, date } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 // Internal users (admins & staff)
@@ -132,6 +132,10 @@ export const subscriptions = pgTable("subscriptions", {
   memberId: integer("member_id").references(() => members.id).notNull(),
   packageId: integer("package_id").references(() => membershipPackages.id).notNull(),
   startDate: timestamp("start_date").notNull(),
+  // The paid-package end date before gym-closure days are credited. Keeping
+  // this immutable reference lets holiday edits/deletions be recalculated
+  // without ever crediting the same closed day twice.
+  baseEndDate: timestamp("base_end_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   status: varchar("status", { length: 50 }).notNull().default("active"), // 'active', 'expired', 'cancelled'
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -143,6 +147,19 @@ export const subscriptions = pgTable("subscriptions", {
     table.endDate
   ),
   index("subscriptions_status_end_date_idx").on(table.status, table.endDate),
+]);
+
+// Whole-gym closure periods. Every distinct calendar day in a period is
+// credited back to subscriptions that would otherwise run through that day.
+export const gymHolidays = pgTable("gym_holidays", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("gym_holidays_start_end_idx").on(table.startDate, table.endDate),
 ]);
 
 // Check-ins

@@ -8,7 +8,7 @@ import { normalizePagination } from "@/lib/pagination"
 
 export async function logAction(
   action: "CREATE" | "UPDATE" | "DELETE",
-  entityType: "MEMBER" | "PACKAGE" | "SUBSCRIPTION" | "TRANSACTION" | "TRAINER" | "CLASS" | "SESSION" | "USER" | "SETTINGS" | "DEVICE",
+  entityType: "MEMBER" | "PACKAGE" | "SUBSCRIPTION" | "TRANSACTION" | "TRAINER" | "CLASS" | "SESSION" | "USER" | "SETTINGS" | "DEVICE" | "HOLIDAY",
   entityId: string | number,
   details?: unknown
 ) {

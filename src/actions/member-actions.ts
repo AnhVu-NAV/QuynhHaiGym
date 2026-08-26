@@ -11,6 +11,7 @@ import { requireAdmin, requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
 import { z } from "zod"
 import { addCalendarMonthsClamped } from "@/lib/membership"
+import { getHolidayAdjustedEndDate } from "@/lib/holiday-preservation"
 import type { BatchItem } from "drizzle-orm/batch"
 
 const memberCreateSchema = z.object({
@@ -141,15 +142,16 @@ export async function createMember(data: {
         subscription_id: number
         transaction_id: number
       }
-      const endDate = addCalendarMonthsClamped(subscriptionInput.startDate, pkg.durationMonths)
+      const baseEndDate = addCalendarMonthsClamped(subscriptionInput.startDate, pkg.durationMonths)
+      const { endDate } = await getHolidayAdjustedEndDate(subscriptionInput.startDate, baseEndDate)
       const created = await db.execute<CreatedRow>(sql`
         with new_member as (
           insert into members (full_name, phone_number, gender, avatar_url, status)
           values (${data.fullName}, ${data.phoneNumber}, ${data.gender || null}, ${data.avatarUrl || null}, 'active')
           returning id
         ), new_subscription as (
-          insert into subscriptions (member_id, package_id, start_date, end_date, status)
-          select id, ${pkg.id}, ${subscriptionInput.startDate}, ${endDate}, 'active'
+          insert into subscriptions (member_id, package_id, start_date, base_end_date, end_date, status)
+          select id, ${pkg.id}, ${subscriptionInput.startDate}, ${baseEndDate}, ${endDate}, 'active'
           from new_member
           returning id, member_id
         ), new_transaction as (
