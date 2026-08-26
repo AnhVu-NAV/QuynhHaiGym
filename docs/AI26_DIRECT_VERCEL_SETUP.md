@@ -28,11 +28,16 @@ Trong Project → Settings → Environment Variables, thêm cho Production:
 ```env
 AI26_DIRECT_MODE_ENABLED=true
 AI26_ALLOWED_SERIALS=AYUD15044766
+# Khuyến nghị khi đường truyền phòng gym có IP WAN tĩnh:
+AI26_ALLOWED_IPS=203.0.113.10
 AI26_ACCESS_CONTROL_ENABLED=false
 AI26_POLL_SECONDS=10
 ```
 
 Redeploy bản Production sau khi thêm biến. Không thêm tiền tố `NEXT_PUBLIC_`.
+Nếu mạng phòng gym dùng IP động, để trống `AI26_ALLOWED_IPS`; endpoint vẫn giới
+hạn serial, kích thước payload và tần suất request. Khi có IP tĩnh, bắt buộc điền
+allowlist này để ngăn thiết bị giả mạo từ Internet.
 `AI26_ACCESS_CONTROL_ENABLED=false` đảm bảo web chỉ ghi check-in, chưa cho phép
 phản hồi của web kích relay mở cửa.
 

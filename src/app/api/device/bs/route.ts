@@ -3,6 +3,7 @@ import { after } from "next/server"
 import { handleGatewayEvent } from "@/lib/ai26-events"
 import { processAi26BsRequest } from "@/lib/ai26-bs-protocol"
 import { claimPendingDeviceCommand } from "@/lib/device-commands"
+import { consumeRateLimit } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -15,6 +16,15 @@ function getAllowedSerials() {
     (process.env.AI26_ALLOWED_SERIALS || "")
       .split(",")
       .map((serial) => serial.trim().toUpperCase())
+      .filter(Boolean)
+  )
+}
+
+function getAllowedIps() {
+  return new Set(
+    (process.env.AI26_ALLOWED_IPS || "")
+      .split(",")
+      .map((ip) => ip.trim())
       .filter(Boolean)
   )
 }
@@ -72,6 +82,22 @@ export async function POST(request: Request) {
     ?.split(",")[0]
     ?.trim()
     .slice(0, 100)
+
+  const allowedIps = getAllowedIps()
+  if (allowedIps.size && (!remoteAddress || !allowedIps.has(remoteAddress))) {
+    return json({ result: false, reason: "source not allowed" }, 403)
+  }
+
+  const requestLimit = await consumeRateLimit(
+    "ai26-direct",
+    `${remoteAddress || "unknown"}:${serialNumber}`,
+    { limit: 120, windowSeconds: 60 },
+  )
+  if (!requestLimit.allowed) {
+    return json({ result: false, reason: "too many requests" }, 429, {
+      "Retry-After": String(requestLimit.retryAfterSeconds),
+    })
+  }
 
   try {
     const startedAt = performance.now()

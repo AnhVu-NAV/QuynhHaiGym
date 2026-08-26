@@ -4,6 +4,7 @@ import { handleGatewayEvent } from "@/lib/ai26-events"
 import { isGatewayAuthorized } from "@/lib/device-gateway"
 
 export const runtime = "nodejs"
+const MAX_BODY_BYTES = 2 * 1024 * 1024
 
 const eventSchema = z.object({
   type: z.enum(["register", "log", "senduser", "response", "disconnect", "heartbeat"]),
@@ -17,7 +18,17 @@ export async function POST(request: Request) {
     return Response.json({ success: false, message: "Unauthorized" }, { status: 401 })
   }
 
-  const parsed = eventSchema.safeParse(await request.json().catch(() => null))
+  const declaredLength = Number(request.headers.get("content-length") || 0)
+  if (declaredLength > MAX_BODY_BYTES) {
+    return Response.json({ success: false, message: "Payload quá lớn" }, { status: 413 })
+  }
+  const body = await request.arrayBuffer()
+  if (body.byteLength > MAX_BODY_BYTES) {
+    return Response.json({ success: false, message: "Payload quá lớn" }, { status: 413 })
+  }
+  const parsed = eventSchema.safeParse(
+    (() => { try { return JSON.parse(new TextDecoder().decode(body)) } catch { return null } })()
+  )
   if (!parsed.success) {
     return Response.json({ success: false, message: "Payload không hợp lệ" }, { status: 400 })
   }

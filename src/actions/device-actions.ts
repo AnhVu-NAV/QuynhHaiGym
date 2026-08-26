@@ -1,6 +1,6 @@
 "use server"
 
-import { and, desc, eq, gte, sql } from "drizzle-orm"
+import { and, desc, eq, gte, ne, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { db } from "@/db"
 import {
@@ -137,7 +137,7 @@ export async function startFaceEnrollment(memberId: number, deviceId?: number) {
   await requireUser()
 
   const member = await db.query.members.findFirst({
-    where: eq(members.id, memberId),
+    where: and(eq(members.id, memberId), ne(members.status, "deleted")),
   })
   if (!member) return { success: false, message: "Không tìm thấy hội viên" }
 
