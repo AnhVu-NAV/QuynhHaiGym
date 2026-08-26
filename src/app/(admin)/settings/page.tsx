@@ -33,6 +33,7 @@ function inclusiveDays(startDate: string, endDate: string) {
 }
 
 export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<"holidays" | "payment">("holidays")
   const [isSaving, setIsSaving] = useState(false)
   const [bankId, setBankId] = useState("")
   const [accountNo, setAccountNo] = useState("")
@@ -173,13 +174,42 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Cài đặt Hệ thống</h2>
         <p className="text-muted-foreground mt-1">Quản lý các cấu hình chung của phần mềm.</p>
       </div>
 
-      <Card className="shadow-sm border-muted">
+      <div
+        role="tablist"
+        aria-label="Nhóm cài đặt"
+        className="grid w-full grid-cols-2 gap-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm sm:w-fit sm:min-w-[30rem]"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "holidays"}
+          onClick={() => setActiveTab("holidays")}
+          className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${activeTab === "holidays" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
+        >
+          <CalendarDays className="h-4 w-4" />
+          <span className="hidden min-[390px]:inline">Ngày nghỉ &amp; bảo lưu</span>
+          <span className="min-[390px]:hidden">Ngày nghỉ</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "payment"}
+          onClick={() => setActiveTab("payment")}
+          className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${activeTab === "payment" ? "bg-emerald-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
+        >
+          <Building2 className="h-4 w-4" />
+          <span className="hidden min-[390px]:inline">Thanh toán VietQR</span>
+          <span className="min-[390px]:hidden">VietQR</span>
+        </button>
+      </div>
+
+      {activeTab === "payment" && <Card role="tabpanel" className="w-full border-muted shadow-sm">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-emerald-600" />
@@ -190,7 +220,7 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="grid gap-4 lg:grid-cols-3">
             <div className="space-y-2">
               <Label>Ngân hàng nhận tiền</Label>
               <select 
@@ -227,16 +257,16 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="pt-4">
+            <div className="flex items-end lg:col-span-3">
               <Button type="submit" disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
                 <Save className="h-4 w-4" /> {isSaving ? "Đang lưu..." : "Lưu cấu hình"}
               </Button>
             </div>
           </form>
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card className="border-muted shadow-sm">
+      {activeTab === "holidays" && <Card role="tabpanel" className="w-full min-w-0 border-muted shadow-sm">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-emerald-600" />
@@ -258,7 +288,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
               {holidaySuggestions.map((suggestion) => {
                 const alreadyAdded = holidays.some((holiday) => (
                   holiday.startDate === suggestion.startDate && holiday.endDate === suggestion.endDate
@@ -272,7 +302,7 @@ export default function SettingsPage() {
                     className="flex min-h-24 items-start justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3 text-left shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-default disabled:opacity-60"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-slate-900">{suggestion.name}</span>
+                      <span className="block break-words text-sm font-semibold text-slate-900">{suggestion.name}</span>
                       <span className="mt-1 block text-xs font-medium text-emerald-700">
                         {formatDateOnly(suggestion.startDate)} – {formatDateOnly(suggestion.endDate)}
                       </span>
@@ -288,8 +318,8 @@ export default function SettingsPage() {
           </div>
 
           <form onSubmit={handleHolidaySave} className="rounded-2xl border bg-slate-50 p-4">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_170px_170px]">
-              <div className="space-y-2">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1.5fr)_minmax(11rem,.75fr)_minmax(11rem,.75fr)]">
+              <div className="space-y-2 md:col-span-2 xl:col-span-1">
                 <Label htmlFor="holiday-name">Tên ngày nghỉ</Label>
                 <Input
                   id="holiday-name"
@@ -331,7 +361,7 @@ export default function SettingsPage() {
                   ? `Sẽ bảo lưu ${inclusiveDays(holidayStart, holidayEnd)} ngày.`
                   : "Chọn ngày bắt đầu và kết thúc đợt nghỉ."}
               </p>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 gap-2 min-[390px]:flex">
                 {editingHolidayId && (
                   <Button type="button" variant="outline" onClick={resetHolidayForm} disabled={isSavingHoliday}>
                     <X /> Hủy sửa
@@ -360,9 +390,9 @@ export default function SettingsPage() {
                   <div key={holiday.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-900">{holiday.name}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {formatDateOnly(holiday.startDate)} – {formatDateOnly(holiday.endDate)}
-                        <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>{formatDateOnly(holiday.startDate)} – {formatDateOnly(holiday.endDate)}</span>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
                           +{inclusiveDays(holiday.startDate, holiday.endDate)} ngày
                         </span>
                       </p>
@@ -386,7 +416,7 @@ export default function SettingsPage() {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   )
 }
