@@ -9,7 +9,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
   const awaitedParams = await searchParams
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
-  const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+  const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 10
 
   const { data: logs, totalPages, totalItems } = await getAuditLogs(q, page, limit)
 
@@ -18,7 +18,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Nhật ký hệ thống</h2>
-          <p className="text-muted-foreground mt-1">Theo dõi lịch sử thao tác của tất cả nhân viên trên hệ thống.</p>
+          <p className="text-muted-foreground mt-1">Theo dõi lịch sử thao tác của nhân viên trong 7 ngày gần nhất.</p>
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <SearchInput placeholder="Tìm theo thao tác, dữ liệu..." />
@@ -35,7 +35,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
               <TableHeader>
                 <TableRow>
                   <TableHead className="whitespace-nowrap">Thời gian</TableHead>
-                  <TableHead className="whitespace-nowrap">Nhân viên (Clerk ID)</TableHead>
+                  <TableHead className="whitespace-nowrap">Nhân viên</TableHead>
                   <TableHead className="whitespace-nowrap">Hành động</TableHead>
                   <TableHead className="whitespace-nowrap">Phân hệ</TableHead>
                   <TableHead className="whitespace-nowrap">Mã dữ liệu</TableHead>
@@ -56,9 +56,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
                         {new Date(log.createdAt).toLocaleString('vi-VN')}
                       </TableCell>
                       <TableCell className="whitespace-nowrap font-medium text-slate-700">
-                        {/* Note: In a real app we'd map Clerk ID to Name by querying clerkClient. 
-                            For performance, showing ID is standard for audit logs unless joined. */}
-                        <span className="truncate w-32 inline-block" title={log.userId}>{log.userId}</span>
+                        <span title={log.userId}>{log.user?.fullName || log.user?.email || log.user?.username || log.userId}</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         <Badge variant={log.action === 'CREATE' ? 'default' : log.action === 'DELETE' ? 'destructive' : 'secondary'}>
@@ -80,7 +78,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
               </TableBody>
             </Table>
           </div>
-          <PaginationWithLimit totalPages={totalPages} totalItems={totalItems} />
+          <PaginationWithLimit totalPages={totalPages} totalItems={totalItems} defaultLimit={10} />
         </CardContent>
       </Card>
     </div>

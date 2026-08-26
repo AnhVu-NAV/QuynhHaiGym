@@ -7,28 +7,34 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 export function PaginationWithLimit({
   totalPages,
   totalItems,
+  pageParam = "page",
+  limitParam = "limit",
+  defaultLimit = 20,
 }: {
   totalPages: number
   totalItems: number
+  pageParam?: string
+  limitParam?: string
+  defaultLimit?: number
 }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
 
-  const currentPage = Number(searchParams.get("page")) || 1
-  const limit = Number(searchParams.get("limit")) || 20
+  const currentPage = Number(searchParams.get(pageParam)) || 1
+  const limit = Number(searchParams.get(limitParam)) || defaultLimit
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString())
-    params.set("page", newPage.toString())
+    params.set(pageParam, newPage.toString())
     router.push(`${pathname}?${params.toString()}`)
   }
 
   const handleLimitChange = (newLimit: string | null) => {
     if (!newLimit) return;
     const params = new URLSearchParams(searchParams.toString())
-    params.set("limit", newLimit)
-    params.set("page", "1") // Reset to page 1
+    params.set(limitParam, newLimit)
+    params.set(pageParam, "1") // Reset to page 1
     router.push(`${pathname}?${params.toString()}`)
   }
 

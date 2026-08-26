@@ -2,7 +2,12 @@
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 
-export function RevenueChart({ data }: { data: any[] }) {
+type RevenuePoint = {
+  name: string
+  total: number
+}
+
+export function RevenueChart({ data }: { data: RevenuePoint[] }) {
   return (
     <ResponsiveContainer width="100%" height={350}>
       <BarChart data={data}>
@@ -21,7 +26,7 @@ export function RevenueChart({ data }: { data: any[] }) {
           tickFormatter={(value) => `${value / 1000000}M`}
         />
         <Tooltip 
-          formatter={(value: any) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)}
+          formatter={(value) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number(value || 0))}
           cursor={{ fill: 'rgba(0,0,0,0.05)' }}
         />
         <Bar

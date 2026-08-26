@@ -2,14 +2,12 @@
 import { Search } from "lucide-react"
 import { Input } from "./input"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import { useTransition, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 
 export function SearchInput({ placeholder = "Tìm kiếm..." }: { placeholder?: string }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
-  
   const initialSearch = searchParams.get("q") || ""
   const [searchTerm, setSearchTerm] = useState(initialSearch)
 
@@ -27,13 +25,12 @@ export function SearchInput({ placeholder = "Tìm kiếm..." }: { placeholder?: 
       
       params.set("page", "1")
       
-      startTransition(() => {
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-      })
+      const query = params.toString()
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
     }, 400) // 400ms debounce
 
     return () => clearTimeout(delayDebounceFn)
-  }, [searchTerm]) // Chỉ chạy lại khi người dùng gõ phím
+  }, [pathname, router, searchParams, searchTerm])
 
   return (
     <div className="relative w-full max-w-sm">

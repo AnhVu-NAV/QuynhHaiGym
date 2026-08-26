@@ -1,13 +1,16 @@
-import { getDashboardStats, getExpiringMembers } from "@/actions/dashboard-actions"
+import { getDashboardStats, getExpiringMembers, getRepeatedExpiredScanMembers } from "@/actions/dashboard-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
-import { Users, CreditCard, Activity, QrCode, AlertTriangle, PhoneCall } from "lucide-react"
+import { Users, CreditCard, Activity, QrCode, AlertTriangle, PhoneCall, ScanFace } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
 export default async function DashboardPage() {
-  const stats = await getDashboardStats()
-  const expiringMembers = await getExpiringMembers()
+  const [stats, expiringMembers, repeatedExpiredScans] = await Promise.all([
+    getDashboardStats(),
+    getExpiringMembers(),
+    getRepeatedExpiredScanMembers(),
+  ])
 
   return (
     <div className="space-y-6">
@@ -18,28 +21,27 @@ export default async function DashboardPage() {
 
       {/* Cảnh báo hội viên sắp hết hạn */}
       {expiringMembers.length > 0 && (
-        <Card className="border-red-200 shadow-sm bg-red-50/50">
-          <CardHeader className="pb-3 border-b border-red-100">
-            <CardTitle className="text-red-700 flex items-center text-lg">
+        <Card className="border-amber-200 shadow-sm bg-amber-50/50">
+          <CardHeader className="pb-3 border-b border-amber-100">
+            <CardTitle className="text-amber-700 flex items-center text-lg">
               <AlertTriangle className="w-5 h-5 mr-2" />
-              Cần chú ý: {expiringMembers.length} Hội viên sắp/đã hết hạn gói tập
+              Sắp hết hạn: {expiringMembers.length} hội viên còn tối đa 7 ngày
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {expiringMembers.slice(0, 6).map((sub: any) => {
+              {expiringMembers.slice(0, 6).map((sub) => {
                 const daysLeft = Math.ceil((new Date(sub.endDate).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
-                const isExpired = daysLeft < 0
                 return (
-                  <div key={sub.id} className="bg-white border border-red-100 rounded-md p-3 flex justify-between items-center shadow-sm">
+                  <div key={sub.id} className="bg-white border border-amber-100 rounded-md p-3 flex justify-between items-center shadow-sm">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-slate-800 truncate">{sub.member.fullName}</p>
                       <p className="text-xs text-slate-500 mt-0.5">{sub.member.phoneNumber} • {sub.package.name}</p>
-                      <p className={`text-xs font-medium mt-1 ${isExpired ? 'text-red-600' : 'text-amber-600'}`}>
-                        {isExpired ? `Đã quá hạn ${Math.abs(daysLeft)} ngày` : `Còn lại ${daysLeft} ngày`}
+                      <p className="text-xs font-medium mt-1 text-amber-600">
+                        Còn lại {Math.max(0, daysLeft)} ngày
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" className="ml-3 shrink-0 h-8 border-red-200 text-red-700 hover:bg-red-50" render={<a href={`tel:${sub.member.phoneNumber}`} />}>
+                    <Button size="sm" variant="outline" className="ml-3 shrink-0 h-8 border-amber-200 text-amber-700 hover:bg-amber-50" render={<a href={`tel:${sub.member.phoneNumber}`} />}>
                       <PhoneCall className="w-3.5 h-3.5 mr-1.5" /> Gọi
                     </Button>
                   </div>
@@ -48,11 +50,49 @@ export default async function DashboardPage() {
             </div>
             {expiringMembers.length > 6 && (
               <div className="mt-4 text-center">
-                <Link href="/members" className="text-sm text-red-600 font-medium hover:underline">
+                <Link href="/members" className="text-sm text-amber-700 font-medium hover:underline">
                   Xem tất cả danh sách ở trang Hội viên →
                 </Link>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Hội viên hết hạn vẫn tiếp tục quét mặt */}
+      {repeatedExpiredScans.length > 0 && (
+        <Card className="border-red-200 shadow-sm bg-red-50/50">
+          <CardHeader className="pb-3 border-b border-red-100">
+            <CardTitle className="text-red-700 flex items-center text-lg">
+              <ScanFace className="w-5 h-5 mr-2" />
+              Đã hết hạn nhưng vẫn quét mặt: {repeatedExpiredScans.length} hội viên
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {repeatedExpiredScans.slice(0, 6).map((item) => (
+                <div key={item.member.id} className="bg-white border border-red-100 rounded-md p-3 flex justify-between items-center shadow-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-slate-800 truncate">{item.member.fullName}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{item.member.phoneNumber}</p>
+                    <p className="text-xs font-semibold text-red-600 mt-1">
+                      {item.invalidAttempts} lần quét bị từ chối
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Lần cuối: {item.lastAttemptAt.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="ml-3 shrink-0 h-8 border-red-200 text-red-700 hover:bg-red-50" render={<a href={`tel:${item.member.phoneNumber}`} />}>
+                    <PhoneCall className="w-3.5 h-3.5 mr-1.5" /> Gọi
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+              <Link href="/check-ins#failed-check-ins" className="text-sm text-red-600 font-medium hover:underline">
+                Xem log check-in không hợp lệ →
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}

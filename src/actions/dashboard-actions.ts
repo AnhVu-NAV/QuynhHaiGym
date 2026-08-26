@@ -2,63 +2,83 @@
 
 import { db } from "@/db"
 import { members, transactions, checkIns, subscriptions } from "@/db/schema"
-import { eq, sql, gte, and, desc } from "drizzle-orm"
+import { eq, sql, gte, and, desc, inArray, ne } from "drizzle-orm"
+
+const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
+
+function getVietnamDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VIETNAM_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ""
+  return { year: Number(value("year")), month: Number(value("month")), day: Number(value("day")) }
+}
+
+function vietnamBoundary(year: number, month: number, day = 1) {
+  const normalized = new Date(Date.UTC(year, month - 1, day))
+  return new Date(
+    `${normalized.getUTCFullYear()}-${String(normalized.getUTCMonth() + 1).padStart(2, "0")}-${String(normalized.getUTCDate()).padStart(2, "0")}T00:00:00+07:00`
+  )
+}
 
 export async function getDashboardStats() {
   const now = new Date()
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const { year, month, day } = getVietnamDateParts(now)
+  const today = vietnamBoundary(year, month, day)
+  const firstChartMonth = vietnamBoundary(year, month - 5)
+  const chartMonth = sql<Date>`date_trunc('month', ${transactions.transactionDate} + interval '7 hours')`
 
-  // 1. Total Members
-  const totalMembersRes = await db.select({ count: sql<number>`count(*)` }).from(members)
-  const totalMembers = totalMembersRes[0].count
+  // These independent reads run together. Revenue for all six months is fetched
+  // with one grouped query instead of one database round-trip per month.
+  const [
+    [{ count: totalMembers }],
+    [{ count: activeMembers }],
+    [{ count: todayCheckins }],
+    recentTransactions,
+    monthlyRows,
+  ] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(members).where(ne(members.status, "deleted")),
+    db.select({ count: sql<number>`count(*)::int` }).from(members).where(eq(members.status, "active")),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(checkIns)
+      .where(and(
+        gte(checkIns.checkInTime, today),
+        inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))),
+      )),
+    db.query.transactions.findMany({
+      orderBy: (transaction, { desc: orderDesc }) => [orderDesc(transaction.transactionDate)],
+      limit: 5,
+      with: { member: true },
+    }),
+    db.select({
+      month: chartMonth,
+      total: sql<number>`coalesce(sum(${transactions.amount}), 0)::int`,
+    })
+      .from(transactions)
+      .where(gte(transactions.transactionDate, firstChartMonth))
+      .groupBy(chartMonth)
+      .orderBy(chartMonth),
+  ])
 
-  // 2. Active Members
-  const activeMembersRes = await db.select({ count: sql<number>`count(*)` })
-    .from(members)
-    .where(eq(members.status, 'active'))
-  const activeMembers = activeMembersRes[0].count
-
-  // 3. This Month Revenue
-  const revenueRes = await db.select({ total: sql<number>`sum(${transactions.amount})` })
-    .from(transactions)
-    .where(gte(transactions.transactionDate, firstDayOfMonth))
-  const monthlyRevenue = revenueRes[0].total || 0
-
-  // 4. Today Check-ins
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayCheckinsRes = await db.select({ count: sql<number>`count(*)` })
-    .from(checkIns)
-    .where(gte(checkIns.checkInTime, today))
-  const todayCheckins = todayCheckinsRes[0].count
-
-  // 5. Recent Transactions
-  const recentTransactions = await db.query.transactions.findMany({
-    orderBy: (transactions, { desc }) => [desc(transactions.transactionDate)],
-    limit: 5,
-    with: {
-      member: true
+  const revenueByMonth = new Map(
+    monthlyRows.map((row) => {
+      const date = new Date(row.month)
+      return [`${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`, Number(row.total)] as const
+    })
+  )
+  const chartData = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - 1 - (5 - index), 1))
+    const chartYear = date.getUTCFullYear()
+    const chartMonthNumber = date.getUTCMonth() + 1
+    return {
+      name: `Thg ${chartMonthNumber}`,
+      total: revenueByMonth.get(`${chartYear}-${chartMonthNumber}`) || 0,
     }
   })
-
-  // 6. Revenue Chart Data (Last 6 Months Real Data)
-  const chartData = []
-  
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-    
-    const monthRes = await db.select({ total: sql<number>`sum(${transactions.amount})` })
-      .from(transactions)
-      .where(
-        sql`${transactions.transactionDate} >= ${d} AND ${transactions.transactionDate} < ${nextMonth}`
-      )
-    
-    chartData.push({
-      name: `Thg ${d.getMonth() + 1}`,
-      total: Number(monthRes[0].total) || 0
-    })
-  }
+  const monthlyRevenue = chartData.at(-1)?.total || 0
 
   return {
     totalMembers,
@@ -75,11 +95,13 @@ export async function getExpiringMembers() {
   const sevenDaysFromNow = new Date()
   sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7)
 
-  // Query active subscriptions that are ending within the next 7 days or ended recently
+  // Load future active subscriptions so stacked renewals are considered. The
+  // member is only warned when their furthest paid-through date is within 7 days.
   const expiringSubs = await db.query.subscriptions.findMany({
     where: and(
       eq(subscriptions.status, "active"),
-      sql`${subscriptions.endDate} <= ${sevenDaysFromNow}`
+      gte(subscriptions.endDate, now),
+      inArray(subscriptions.memberId, db.select({ id: members.id }).from(members).where(ne(members.status, "deleted")))
     ),
     orderBy: [desc(subscriptions.endDate)],
     with: {
@@ -96,5 +118,58 @@ export async function getExpiringMembers() {
     }
   })
 
-  return Array.from(uniqueMembers.values())
+  return Array.from(uniqueMembers.values()).filter(
+    (sub) => new Date(sub.endDate) <= sevenDaysFromNow
+  )
+}
+
+export async function getRepeatedExpiredScanMembers() {
+  type RepeatedExpiredRow = {
+    member_id: number
+    full_name: string
+    phone_number: string
+    invalid_attempts: number
+    last_attempt_at: Date | string
+    expired_at: Date | string
+  }
+
+  // Aggregate inside PostgreSQL so Vercel never downloads thousands of logs or
+  // every subscription merely to show this small dashboard alert.
+  const result = await db.execute<RepeatedExpiredRow>(sql`
+    with latest_subscription as (
+      select member_id, max(end_date) as expired_at
+      from subscriptions
+      where status <> 'cancelled'
+      group by member_id
+    )
+    select
+      m.id as member_id,
+      m.full_name,
+      m.phone_number,
+      count(f.id)::int as invalid_attempts,
+      max(f.attempted_at) as last_attempt_at,
+      latest.expired_at
+    from failed_check_ins f
+    join members m on m.id = f.member_id and m.status <> 'deleted'
+    join latest_subscription latest on latest.member_id = f.member_id
+    where f.source = 'ai26'
+      and f.reason = 'subscription_expired'
+      and latest.expired_at < now()
+      and f.attempted_at > latest.expired_at
+    group by m.id, m.full_name, m.phone_number, latest.expired_at
+    having count(f.id) > 1
+    order by max(f.attempted_at) desc
+    limit 50
+  `)
+
+  return result.rows.map((row) => ({
+    member: {
+      id: Number(row.member_id),
+      fullName: row.full_name,
+      phoneNumber: row.phone_number,
+    },
+    invalidAttempts: Number(row.invalid_attempts),
+    lastAttemptAt: new Date(row.last_attempt_at),
+    expiredAt: new Date(row.expired_at),
+  }))
 }
