@@ -10,6 +10,11 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Quỳnh Hải Gym",
   description: "Phần mềm quản lý phòng Gym toàn diện",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

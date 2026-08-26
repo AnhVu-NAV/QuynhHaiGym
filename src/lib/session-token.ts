@@ -3,6 +3,7 @@ export const SESSION_DURATION_SECONDS = 60 * 60 * 12
 
 export type SessionPayload = {
   userId: string
+  sessionVersion: number
   expiresAt: number
 }
 
@@ -57,7 +58,7 @@ export async function verifySessionToken(token: string | undefined, secret: stri
       new TextDecoder().decode(fromBase64Url(encodedPayload)),
     ) as SessionPayload
 
-    if (!payload.userId || payload.expiresAt <= Date.now()) return null
+    if (!payload.userId || !Number.isInteger(payload.sessionVersion) || payload.expiresAt <= Date.now()) return null
     return payload
   } catch {
     return null

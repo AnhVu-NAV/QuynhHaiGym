@@ -29,7 +29,7 @@ export const getCurrentUser = cache(async () => {
     where: eq(users.id, session.userId),
   })
 
-  return user && !user.isLocked ? user : null
+  return user && !user.isLocked && user.sessionVersion === session.sessionVersion ? user : null
 })
 
 export async function requireUser() {

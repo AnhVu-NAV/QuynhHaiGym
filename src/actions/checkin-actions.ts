@@ -4,15 +4,41 @@ import { db } from "@/db"
 import { members, subscriptions, checkIns, failedCheckIns } from "@/db/schema"
 import { and, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { consumeRateLimit, getRequestIp } from "@/lib/rate-limit"
+import { requireUser } from "@/lib/auth"
+import { normalizePagination } from "@/lib/pagination"
 
-export async function processCheckIn(phoneNumber: string) {
-  // 1. Find member by phone
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export async function processCheckIn(rawIdentifier: string) {
+  const identifier = rawIdentifier.trim().replace(/^gym:/i, "")
+  if (!identifier || identifier.length > 64) {
+    return { success: false, message: "Mã check-in không hợp lệ." }
+  }
+
+  const requestIp = await getRequestIp()
+  const ipLimit = await consumeRateLimit("public-checkin-ip", requestIp, { limit: 60, windowSeconds: 60 })
+  if (!ipLimit.allowed) {
+    return { success: false, message: "Bạn thao tác quá nhanh. Vui lòng chờ một phút rồi thử lại." }
+  }
+  const memberLimit = await consumeRateLimit("public-checkin-member", identifier, { limit: 4, windowSeconds: 60 })
+  if (!memberLimit.allowed) {
+    return { success: false, message: "Bạn thao tác quá nhanh. Vui lòng chờ một phút rồi thử lại." }
+  }
+
+  // QR cards use an opaque token. Manual phone entry remains available at the
+  // kiosk but is tightly rate-limited above.
   const member = await db.query.members.findFirst({
-    where: eq(members.phoneNumber, phoneNumber)
+    where: and(
+      ne(members.status, "deleted"),
+      UUID_PATTERN.test(identifier)
+        ? eq(members.publicToken, identifier)
+        : eq(members.phoneNumber, identifier),
+    )
   })
 
   if (!member) {
-    return { success: false, message: "Không tìm thấy hội viên với số điện thoại này." }
+    return { success: false, message: "Không tìm thấy thẻ hội viên hợp lệ." }
   }
 
   // 2. Check an active subscription that is valid at this moment.
@@ -41,11 +67,24 @@ export async function processCheckIn(phoneNumber: string) {
     return { 
       success: false, 
       message,
-      member: member 
+      member: { fullName: member.fullName },
     }
   }
 
   // 3. Log Check-in
+  const duplicateWindow = new Date(now.getTime() - 30_000)
+  const recentCheckIn = await db.query.checkIns.findFirst({
+    where: and(eq(checkIns.memberId, member.id), gte(checkIns.checkInTime, duplicateWindow)),
+    orderBy: [desc(checkIns.checkInTime)],
+  })
+  if (recentCheckIn) {
+    return {
+      success: true,
+      message: "Hội viên đã check-in trong vài giây vừa qua.",
+      member: { fullName: member.fullName },
+    }
+  }
+
   await db.insert(checkIns).values({
     memberId: member.id,
     checkInTime: new Date()
@@ -55,13 +94,16 @@ export async function processCheckIn(phoneNumber: string) {
   return { 
     success: true, 
     message: "Check-in thành công!", 
-    member: member,
-    subscription: activeSub
+    member: { fullName: member.fullName },
   }
 }
 
 export async function getRecentCheckIns(q?: string, page: number = 1, limit: number = 10) {
-  const offset = (page - 1) * limit;
+  await requireUser()
+  const pagination = normalizePagination(page, limit, 10)
+  page = pagination.page
+  limit = pagination.limit
+  const { offset } = pagination
 
   const memberClause = and(
     ne(members.status, "deleted"),
@@ -85,6 +127,7 @@ export async function getRecentCheckIns(q?: string, page: number = 1, limit: num
 }
 
 export async function getMemberCheckIns(memberId: number) {
+  await requireUser()
   const data = await db.query.checkIns.findMany({
     where: eq(checkIns.memberId, memberId),
     orderBy: [desc(checkIns.checkInTime)],
@@ -94,7 +137,11 @@ export async function getMemberCheckIns(memberId: number) {
 }
 
 export async function getRecentFailedCheckIns(q?: string, page: number = 1, limit: number = 10) {
-  const offset = (page - 1) * limit
+  await requireUser()
+  const pagination = normalizePagination(page, limit, 10)
+  page = pagination.page
+  limit = pagination.limit
+  const { offset } = pagination
   const visibleMemberIds = db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))
   const matchingMemberIds = db.select({ id: members.id }).from(members).where(and(
     ne(members.status, "deleted"),

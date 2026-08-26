@@ -7,10 +7,15 @@ import { and, eq, or, ilike, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth"
 import { hashPassword } from "@/lib/password"
+import { logAction } from "./audit-actions"
+import { normalizePagination } from "@/lib/pagination"
 
 export async function getInternalUsers(q?: string, page = 1, limit = 20, role = "all", status = "all") {
   await requireAdmin()
-  const offset = (page - 1) * limit
+  const pagination = normalizePagination(page, limit)
+  page = pagination.page
+  limit = pagination.limit
+  const { offset } = pagination
   const searchClause = q ? or(
     ilike(users.fullName, `%${q}%`),
     ilike(users.email, `%${q}%`),
@@ -52,12 +57,24 @@ export async function createInternalUser(formData: FormData) {
   const jobTitle = String(formData.get("jobTitle") ?? "").trim()
   const role = String(formData.get("role") ?? "")
 
-  if ((!email && !username) || password.length < 8 || !fullName || !["admin", "staff"].includes(role)) {
-    return { error: "Vui lòng nhập đủ thông tin; mật khẩu cần ít nhất 8 ký tự." }
+  if (
+    (!email && !username)
+    || email.length > 255
+    || username.length > 255
+    || fullName.length < 2
+    || fullName.length > 255
+    || password.length < 12
+    || password.length > 256
+    || !/[A-Za-z]/.test(password)
+    || !/\d/.test(password)
+    || !["admin", "staff"].includes(role)
+    || (phoneNumber && !/^0\d{8,10}$/.test(phoneNumber))
+  ) {
+    return { error: "Thông tin chưa hợp lệ; mật khẩu cần ít nhất 12 ký tự, gồm chữ và số." }
   }
 
   try {
-    await db.insert(users).values({
+    const [created] = await db.insert(users).values({
       id: randomUUID(),
       email: email || null,
       username: username || null,
@@ -66,7 +83,8 @@ export async function createInternalUser(formData: FormData) {
       phoneNumber: phoneNumber || null,
       jobTitle: jobTitle || null,
       role,
-    })
+    }).returning({ id: users.id })
+    await logAction("CREATE", "USER", created.id, { role, fullName })
     revalidatePath("/users")
     return { success: true }
   } catch (error) {
@@ -76,11 +94,26 @@ export async function createInternalUser(formData: FormData) {
 }
 
 export async function toggleUserLock(userId: string, currentlyLocked: boolean) {
+  void currentlyLocked
   const admin = await requireAdmin()
   if (admin.id === userId) return { error: "Bạn không thể tự khóa tài khoản đang đăng nhập." }
 
   try {
-    await db.update(users).set({ isLocked: !currentlyLocked }).where(eq(users.id, userId))
+    const target = await db.query.users.findFirst({ where: eq(users.id, userId) })
+    if (!target) return { error: "Tài khoản không tồn tại." }
+    const nextLocked = !target.isLocked
+    if (nextLocked && target.role === "admin") {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users).where(and(
+        eq(users.role, "admin"),
+        eq(users.isLocked, false),
+      ))
+      if (Number(count) <= 1) return { error: "Hệ thống phải còn ít nhất một quản trị viên hoạt động." }
+    }
+    await db.update(users).set({
+      isLocked: nextLocked,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+    }).where(eq(users.id, userId))
+    await logAction("UPDATE", "USER", userId, { isLocked: nextLocked })
     revalidatePath("/users")
     return { success: true }
   } catch (error) {
@@ -95,11 +128,40 @@ export async function updateUserRole(userId: string, newRole: string) {
   if (admin.id === userId) return { error: "Bạn không thể tự thay đổi quyền của mình." }
 
   try {
-    await db.update(users).set({ role: newRole }).where(eq(users.id, userId))
+    const target = await db.query.users.findFirst({ where: eq(users.id, userId) })
+    if (!target) return { error: "Tài khoản không tồn tại." }
+    if (target.role === "admin" && newRole === "staff" && !target.isLocked) {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users).where(and(
+        eq(users.role, "admin"),
+        eq(users.isLocked, false),
+      ))
+      if (Number(count) <= 1) return { error: "Hệ thống phải còn ít nhất một quản trị viên hoạt động." }
+    }
+    await db.update(users).set({
+      role: newRole,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+    }).where(eq(users.id, userId))
+    await logAction("UPDATE", "USER", userId, { role: newRole })
     revalidatePath("/users")
     return { success: true }
   } catch (error) {
     console.error("Error updating role:", error)
     return { error: "Không thể cập nhật quyền." }
   }
+}
+
+export async function resetUserPassword(userId: string, newPassword: string) {
+  const admin = await requireAdmin()
+  if (!userId || userId.length > 255) return { error: "Tài khoản không hợp lệ." }
+  if (newPassword.length < 12 || newPassword.length > 256 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+    return { error: "Mật khẩu cần ít nhất 12 ký tự, gồm chữ và số." }
+  }
+
+  const [updated] = await db.update(users).set({
+    passwordHash: await hashPassword(newPassword),
+    sessionVersion: sql`${users.sessionVersion} + 1`,
+  }).where(eq(users.id, userId)).returning({ id: users.id })
+  if (!updated) return { error: "Tài khoản không tồn tại." }
+  await logAction("UPDATE", "USER", userId, { passwordResetBy: admin.id })
+  return { success: true }
 }

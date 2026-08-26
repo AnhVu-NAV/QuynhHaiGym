@@ -2,11 +2,11 @@
 
 import { toast } from "sonner"
 
-export function CopyCardButton({ phoneNumber }: { phoneNumber: string }) {
+export function CopyCardButton({ publicToken }: { publicToken: string }) {
   return (
     <button 
       onClick={() => {
-        navigator.clipboard.writeText(`${window.location.origin}/my-card/${phoneNumber}`)
+        navigator.clipboard.writeText(`${window.location.origin}/my-card/${publicToken}`)
         toast.success("Đã copy link Thẻ tập ảo!")
       }}
       className="h-8 px-2 text-blue-600 hover:bg-blue-50 rounded-md text-xs font-medium border border-blue-200"

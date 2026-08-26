@@ -19,6 +19,7 @@ async function main() {
     "0006_ai26_log_capacity.sql",
     "0007_ai26_fast_checkin.sql",
     "0008_performance_indexes.sql",
+    "0009_security_integrity.sql",
   ]
 
   for (const fileName of migrationFiles) {

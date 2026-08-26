@@ -4,10 +4,13 @@ import { QRCodeSVG } from "qrcode.react"
 import { Dumbbell, Calendar, Clock, User, CheckCircle2, XCircle } from "lucide-react"
 import { DownloadCardButton } from "@/components/cards/download-card-button"
 
+export const dynamic = "force-dynamic"
+export const metadata = { robots: { index: false, follow: false } }
+
 export default async function VirtualCardPage({ params }: { params: Promise<{ phoneNumber: string }> }) {
   const resolvedParams = await params
-  const decodedPhone = decodeURIComponent(resolvedParams.phoneNumber)
-  const data = await getMemberPortalData(decodedPhone)
+  const publicToken = decodeURIComponent(resolvedParams.phoneNumber)
+  const data = await getMemberPortalData(publicToken)
 
   if (!data) return notFound()
 
@@ -24,7 +27,7 @@ export default async function VirtualCardPage({ params }: { params: Promise<{ ph
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-teal-300/40 dark:bg-teal-800/30 rounded-full blur-[100px] pointer-events-none"></div>
 
       <div className="w-full max-w-md space-y-6 mt-6 z-10 relative">
-        <DownloadCardButton targetId="virtual-card" fileName={`The_Hoi_Vien_${member.phoneNumber}`} />
+        <DownloadCardButton targetId="virtual-card" fileName="The_Hoi_Vien_Quynh_Hai_Gym" />
         
         {/* Container to capture as Image */}
         <div id="virtual-card" className="flex flex-col items-center space-y-6 p-4 -m-4 bg-transparent">
@@ -61,7 +64,7 @@ export default async function VirtualCardPage({ params }: { params: Promise<{ ph
               </div>
 
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white text-center tracking-tight">{member.fullName}</h2>
-              <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 font-mono">{member.phoneNumber}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 font-mono">{member.maskedPhone}</p>
 
               {/* QR Code Section */}
               <div className="relative group w-full max-w-[240px]">
@@ -69,7 +72,7 @@ export default async function VirtualCardPage({ params }: { params: Promise<{ ph
                 <div className="relative bg-white p-5 rounded-3xl shadow-xl dark:shadow-2xl flex flex-col items-center border border-slate-100 dark:border-0">
                   <div className="relative overflow-hidden rounded-xl w-full flex justify-center">
                     <QRCodeSVG 
-                      value={member.phoneNumber} 
+                      value={`gym:${member.publicToken}`}
                       size={200} 
                       level="H"
                       includeMargin={false}

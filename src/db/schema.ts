@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, integer, boolean, text, uniqueIndex, index, jsonb, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, timestamp, integer, boolean, text, uniqueIndex, index, jsonb, doublePrecision, uuid } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 // Internal users (admins & staff)
@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   isLocked: boolean("is_locked").default(false).notNull(),
   role: varchar("role", { length: 50 }).notNull().default("staff"), // 'admin', 'staff'
+  sessionVersion: integer("session_version").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("users_email_unique_lower").on(sql`lower(${table.email})`),
@@ -21,6 +22,7 @@ export const users = pgTable("users", {
 // Members
 export const members = pgTable("members", {
   id: serial("id").primaryKey(),
+  publicToken: uuid("public_token").defaultRandom().notNull(),
   fullName: varchar("full_name", { length: 255 }).notNull(),
   phoneNumber: varchar("phone_number", { length: 20 }).notNull().unique(),
   gender: varchar("gender", { length: 10 }),
@@ -31,6 +33,7 @@ export const members = pgTable("members", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
+  uniqueIndex("members_public_token_unique").on(table.publicToken),
   index("members_status_created_idx").on(table.status, table.createdAt),
 ]);
 
@@ -186,7 +189,9 @@ export const transactions = pgTable("transactions", {
   paymentMethod: varchar("payment_method", { length: 50 }).default("cash"), // 'cash', 'transfer'
   description: text("description"),
   transactionDate: timestamp("transaction_date").defaultNow().notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 100 }),
 }, (table) => [
+  uniqueIndex("transactions_idempotency_key_unique").on(table.idempotencyKey),
   index("transactions_date_idx").on(table.transactionDate),
   index("transactions_member_date_idx").on(table.memberId, table.transactionDate),
 ]);
@@ -251,7 +256,19 @@ export const classBookings = pgTable("class_bookings", {
   bookedAt: timestamp("booked_at").defaultNow().notNull(),
   status: varchar("status", { length: 50 }).default("booked").notNull(), // 'booked', 'attended', 'cancelled'
 }, (table) => [
+  uniqueIndex("class_bookings_session_member_unique").on(table.sessionId, table.memberId),
   index("class_bookings_session_status_idx").on(table.sessionId, table.status),
+]);
+
+// Shared fixed-window counters used by public/login endpoints. Keeping these in
+// Neon makes the limit effective across every Vercel instance.
+export const rateLimits = pgTable("rate_limits", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  count: integer("count").notNull().default(1),
+  windowStartedAt: timestamp("window_started_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (table) => [
+  index("rate_limits_expires_at_idx").on(table.expiresAt),
 ]);
 
 // Phase 3: Settings

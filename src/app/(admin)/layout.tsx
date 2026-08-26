@@ -2,6 +2,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { LogoutButton } from "@/components/auth/logout-button"
 import { requireUser } from "@/lib/auth"
+import { ChangePasswordButton } from "@/components/auth/change-password-button"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser()
@@ -24,6 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <SidebarTrigger className="rounded-xl border border-slate-200 bg-white" />
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden text-right sm:block"><div className="text-sm font-semibold text-slate-800">{user.fullName || user.email || user.username}</div><div className="text-xs text-slate-500">{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</div></div>
+            <ChangePasswordButton />
             <LogoutButton />
           </div>
         </header>

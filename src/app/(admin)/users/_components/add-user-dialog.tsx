@@ -61,7 +61,7 @@ export function AddUserDialog() {
             </div>
           <div className="space-y-2">
             <Label htmlFor="password">Mật khẩu</Label>
-            <Input id="password" name="password" type="password" autoComplete="new-password" required placeholder="Ít nhất 8 ký tự" minLength={8} />
+            <Input id="password" name="password" type="password" autoComplete="new-password" required placeholder="Ít nhất 12 ký tự, có chữ và số" minLength={12} maxLength={256} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="fullName">Họ và tên</Label>
