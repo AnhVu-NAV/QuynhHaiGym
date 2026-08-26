@@ -1,7 +1,7 @@
 import { getDashboardStats, getExpiringMembers, getRepeatedExpiredScanMembers } from "@/actions/dashboard-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RevenueChart } from "@/components/dashboard/revenue-chart"
-import { Users, CreditCard, Activity, QrCode, AlertTriangle, PhoneCall, ScanFace } from "lucide-react"
+import { Users, CreditCard, Banknote, QrCode, AlertTriangle, PhoneCall, ScanFace } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -108,20 +108,26 @@ export default async function DashboardPage() {
             <div className="text-2xl font-bold text-slate-800">
               {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(stats.monthlyRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">+20.1% so với tháng trước</p>
+            <p className={`mt-1 text-xs ${stats.monthlyRevenueChange === null ? "text-muted-foreground" : stats.monthlyRevenueChange >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+              {stats.monthlyRevenueChange === null
+                ? "Chưa có doanh thu tháng trước để so sánh"
+                : `${stats.monthlyRevenueChange >= 0 ? "+" : ""}${stats.monthlyRevenueChange}% so với tháng trước`}
+            </p>
           </CardContent>
         </Card>
         
         <Card className="shadow-sm border-muted">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">Hội viên đang hoạt động</CardTitle>
-            <Activity className="h-4 w-4 text-emerald-500" />
+            <CardTitle className="text-sm font-medium text-slate-600">Doanh thu hôm nay</CardTitle>
+            <Banknote className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-800">
-              {stats.activeMembers} <span className="text-sm font-normal text-slate-500">/ {stats.totalMembers}</span>
+              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(stats.todayRevenue)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Đã bao gồm hội viên mới</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {stats.todayTransactions} giao dịch được ghi nhận
+            </p>
           </CardContent>
         </Card>
 
@@ -131,8 +137,8 @@ export default async function DashboardPage() {
             <QrCode className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-800">+{stats.todayCheckins}</div>
-            <p className="text-xs text-muted-foreground mt-1">Hội viên đã tới tập</p>
+            <div className="text-2xl font-bold text-slate-800">{stats.todayCheckins}</div>
+            <p className="text-xs text-muted-foreground mt-1">Hôm qua có {stats.yesterdayCheckins} lượt</p>
           </CardContent>
         </Card>
 
@@ -143,7 +149,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-800">{stats.totalMembers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Tổng cộng từ trước tới nay</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              +{stats.newMembersThisMonth} hội viên mới trong tháng
+            </p>
           </CardContent>
         </Card>
       </div>

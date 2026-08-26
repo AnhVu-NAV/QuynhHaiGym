@@ -2,7 +2,7 @@
 
 import { db } from "@/db"
 import { members, transactions, checkIns, subscriptions } from "@/db/schema"
-import { eq, sql, gte, and, desc, inArray, ne } from "drizzle-orm"
+import { eq, sql, gte, and, desc, inArray, lt, ne } from "drizzle-orm"
 import { requireUser } from "@/lib/auth"
 
 const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
@@ -30,6 +30,8 @@ export async function getDashboardStats() {
   const now = new Date()
   const { year, month, day } = getVietnamDateParts(now)
   const today = vietnamBoundary(year, month, day)
+  const yesterday = vietnamBoundary(year, month, day - 1)
+  const firstDayOfMonth = vietnamBoundary(year, month)
   const firstChartMonth = vietnamBoundary(year, month - 5)
   const chartMonth = sql<Date>`date_trunc('month', ${transactions.transactionDate} + interval '7 hours')`
 
@@ -37,21 +39,17 @@ export async function getDashboardStats() {
   // with one grouped query instead of one database round-trip per month.
   const [
     [{ count: totalMembers }],
-    [{ count: activeMembers }],
+    [{ count: newMembersThisMonth }],
     [{ count: todayCheckins }],
+    [{ count: yesterdayCheckins }],
+    [{ total: todayRevenue, count: todayTransactions }],
     recentTransactions,
     monthlyRows,
   ] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(members).where(ne(members.status, "deleted")),
     db.select({ count: sql<number>`count(*)::int` }).from(members).where(and(
-      eq(members.status, "active"),
-      sql<boolean>`exists (
-        select 1 from subscriptions active_subscription
-        where active_subscription.member_id = ${members.id}
-          and active_subscription.status = 'active'
-          and active_subscription.start_date <= now()
-          and active_subscription.end_date >= now()
-      )`,
+      ne(members.status, "deleted"),
+      gte(members.joinDate, firstDayOfMonth),
     )),
     db.select({ count: sql<number>`count(*)::int` })
       .from(checkIns)
@@ -59,6 +57,19 @@ export async function getDashboardStats() {
         gte(checkIns.checkInTime, today),
         inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))),
       )),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(checkIns)
+      .where(and(
+        gte(checkIns.checkInTime, yesterday),
+        lt(checkIns.checkInTime, today),
+        inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))),
+      )),
+    db.select({
+      total: sql<number>`coalesce(sum(${transactions.amount}), 0)::int`,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(transactions)
+      .where(gte(transactions.transactionDate, today)),
     db.query.transactions.findMany({
       orderBy: (transaction, { desc: orderDesc }) => [orderDesc(transaction.transactionDate)],
       limit: 5,
@@ -90,12 +101,20 @@ export async function getDashboardStats() {
     }
   })
   const monthlyRevenue = chartData.at(-1)?.total || 0
+  const previousMonthRevenue = chartData.at(-2)?.total || 0
+  const monthlyRevenueChange = previousMonthRevenue > 0
+    ? Math.round(((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 1000) / 10
+    : null
 
   return {
     totalMembers,
-    activeMembers,
+    newMembersThisMonth,
     monthlyRevenue,
+    monthlyRevenueChange,
+    todayRevenue,
+    todayTransactions,
     todayCheckins,
+    yesterdayCheckins,
     recentTransactions,
     chartData
   }
