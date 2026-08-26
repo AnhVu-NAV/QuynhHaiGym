@@ -11,18 +11,24 @@ import {
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { AlertTriangle } from "lucide-react"
+import { SearchInput } from "@/components/ui/search-input"
+import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 
-export default async function ReportsPage() {
-  const expiringSubs = await getExpiringMembers()
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams
+  const q = typeof params.q === "string" ? params.q : ""
+  const page = typeof params.page === "string" ? Number(params.page) : 1
+  const limit = typeof params.limit === "string" ? Number(params.limit) : 20
+  const { data: expiringSubs, totalPages, totalItems } = await getExpiringMembers(q, page, limit)
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Báo cáo & Chăm sóc</h2>
           <p className="text-muted-foreground mt-1">Danh sách cần gọi điện chăm sóc và Xuất dữ liệu.</p>
         </div>
-        <ExportButton />
+        <div className="flex w-full items-center gap-2 sm:w-auto"><div className="min-w-52 flex-1"><SearchInput placeholder="Tìm tên hoặc SĐT..." /></div><ExportButton /></div>
       </div>
 
       <Card className="shadow-sm border-orange-200">
@@ -84,6 +90,7 @@ export default async function ReportsPage() {
               )}
             </TableBody>
           </Table>
+          <PaginationWithLimit totalPages={totalPages} totalItems={totalItems} />
         </CardContent>
       </Card>
       

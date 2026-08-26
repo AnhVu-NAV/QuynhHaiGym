@@ -1,161 +1,83 @@
-import { getPTSessions } from "@/actions/schedule-actions"
+import Link from "next/link"
+import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
+import { getPTCalendarSessions } from "@/actions/schedule-actions"
 import { getTrainers } from "@/actions/trainer-actions"
 import { getMembers } from "@/actions/member-actions"
 import { ScheduleDialog } from "@/components/schedule/schedule-dialog"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-
+import { WeekCalendar } from "@/components/schedule/week-calendar"
+import { Button } from "@/components/ui/button"
+import { QueryFilter } from "@/components/ui/query-filter"
 import { SearchInput } from "@/components/ui/search-input"
-import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 
-export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  const awaitedParams = await searchParams
-  const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
-  const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
-  const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+function dateKey(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" }).format(date)
+}
 
-  const { data: sessions, totalPages, totalItems } = await getPTSessions(q, page, limit)
-  const { data: trainers } = await getTrainers(undefined, 1, 1000, true)
-  
-  // For booking, we need all active members
+function mondayOf(value?: string) {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? new Date(`${value}T12:00:00+07:00`) : new Date()
+  const shortDay = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Ho_Chi_Minh", weekday: "short" }).format(date)
+  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(shortDay)
+  date.setDate(date.getDate() - ((weekday + 6) % 7))
+  return new Date(`${dateKey(date)}T00:00:00+07:00`)
+}
+
+export default async function SchedulePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const params = await searchParams
+  const q = typeof params.q === "string" ? params.q : ""
+  const trainerFilter = typeof params.trainer === "string" ? params.trainer : "all"
+  const status = typeof params.status === "string" ? params.status : "all"
+  const week = typeof params.week === "string" ? params.week : undefined
+  const weekStart = mondayOf(week)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+
+  const { data: trainers } = await getTrainers(undefined, 1, 1000, true, "active")
   const { data: allMembers } = await getMembers(undefined, 1, 1000)
-  const activeMembers = allMembers.filter(m => m.status === 'active')
+  const activeMembers = allMembers.filter((member) => member.status === "active")
+  const parsedTrainerId = trainerFilter !== "all" ? Number(trainerFilter) : undefined
+  const sessions = await getPTCalendarSessions({ from: weekStart, to: weekEnd, q, trainerId: parsedTrainerId, status })
+
+  const previousWeek = new Date(weekStart)
+  previousWeek.setDate(previousWeek.getDate() - 7)
+  const nextWeek = new Date(weekStart)
+  nextWeek.setDate(nextWeek.getDate() + 7)
+  const makeHref = (target?: Date) => {
+    const query = new URLSearchParams()
+    if (q) query.set("q", q)
+    if (trainerFilter !== "all") query.set("trainer", trainerFilter)
+    if (status !== "all") query.set("status", status)
+    if (target) query.set("week", dateKey(target))
+    return `/schedule${query.size ? `?${query}` : ""}`
+  }
+  const weekLabel = `${weekStart.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit" })} – ${new Date(weekEnd.getTime() - 1).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" })}`
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Lịch tập PT</h2>
-          <p className="text-muted-foreground mt-1">Quản lý lịch tập cá nhân 1 kèm 1 giữa HLV và Hội viên.</p>
+          <div className="flex items-center gap-3"><span className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700"><CalendarDays className="h-6 w-6" /></span><div><h2 className="text-3xl font-bold tracking-tight text-slate-900">Lịch tập PT</h2><p className="mt-1 text-muted-foreground">Xem tải của từng PT và đặt lịch lặp theo tuần.</p></div></div>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <SearchInput placeholder="Tìm tên HV hoặc PT..." />
+        <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto">
+          <div className="min-w-56 flex-1"><SearchInput placeholder="Tìm hội viên hoặc PT..." /></div>
+          <QueryFilter param="trainer" label="Lọc PT" options={[{ value: "all", label: "Tất cả PT" }, ...trainers.map((trainer) => ({ value: String(trainer.id), label: trainer.fullName }))]} />
+          <QueryFilter param="status" label="Trạng thái" options={[{ value: "all", label: "Mọi trạng thái" }, { value: "scheduled", label: "Sắp diễn ra" }, { value: "completed", label: "Đã hoàn thành" }, { value: "cancelled", label: "Đã hủy" }]} />
           <ScheduleDialog trainers={trainers} members={activeMembers} />
         </div>
       </div>
 
-      <Card className="shadow-sm border-muted">
-        <CardHeader className="pb-4">
-          <CardTitle>Danh sách lịch tập</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 sm:p-6 overflow-hidden">
-          {/* Mobile View */}
-          <div className="grid gap-3 p-4 md:hidden">
-            {sessions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground bg-slate-50 rounded-lg">
-                Chưa có lịch tập nào.
-              </div>
-            ) : (
-              sessions.map((session) => {
-                const startDate = new Date(session.startTime)
-                const endDate = new Date(session.endTime)
-                return (
-                  <Card key={session.id} className="p-4 shadow-sm border-slate-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-semibold text-slate-800 text-lg">
-                          {startDate.toLocaleDateString('vi-VN')}
-                        </div>
-                        <div className="text-sm font-medium text-emerald-600">
-                          {startDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})} - {endDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}
-                        </div>
-                      </div>
-                      {session.status === 'scheduled' ? (
-                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0">Sắp diễn ra</span>
-                      ) : session.status === 'completed' ? (
-                        <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0">Hoàn thành</span>
-                      ) : (
-                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0">Đã hủy</span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Huấn luyện viên:</span>
-                        <span className="font-medium text-slate-800">{session.trainer.fullName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Hội viên:</span>
-                        <span className="font-medium text-slate-800">{session.member.fullName}</span>
-                      </div>
-                      {session.notes && (
-                        <div className="mt-2 pt-2 border-t">
-                          <span className="text-xs text-muted-foreground block mb-1">Ghi chú:</span>
-                          <p className="text-sm text-slate-600 line-clamp-2">{session.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                )
-              })
-            )}
-          </div>
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" className="rounded-xl" render={<Link href={makeHref(previousWeek)} aria-label="Tuần trước"><ChevronLeft className="h-4 w-4" /></Link>} />
+          <Button variant="outline" className="rounded-xl" render={<Link href={makeHref()}>Hôm nay</Link>} />
+          <Button variant="outline" size="icon" className="rounded-xl" render={<Link href={makeHref(nextWeek)} aria-label="Tuần sau"><ChevronRight className="h-4 w-4" /></Link>} />
+          <strong className="ml-3 text-sm text-slate-800 sm:text-base">{weekLabel}</strong>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-slate-500"><span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-emerald-200" /> Lịch đang hoạt động</span><span>Con số trên lịch = số người / sức chứa PT</span></div>
+      </div>
 
-          {/* Desktop View */}
-          <div className="hidden md:block overflow-x-auto">
-            <Table className="min-w-[700px] sm:min-w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ngày tập</TableHead>
-                  <TableHead>Giờ tập</TableHead>
-                  <TableHead>Huấn luyện viên</TableHead>
-                  <TableHead>Hội viên</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Ghi chú</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
-                      Chưa có lịch tập nào.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sessions.map((session) => {
-                    const startDate = new Date(session.startTime)
-                    const endDate = new Date(session.endTime)
-                    
-                    return (
-                      <TableRow key={session.id}>
-                        <TableCell className="font-medium">
-                          {startDate.toLocaleDateString('vi-VN')}
-                        </TableCell>
-                        <TableCell>
-                          {startDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})} - 
-                          {endDate.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}
-                        </TableCell>
-                        <TableCell>{session.trainer.fullName}</TableCell>
-                        <TableCell>{session.member.fullName}</TableCell>
-                        <TableCell>
-                          {session.status === 'scheduled' ? (
-                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">Sắp diễn ra</span>
-                          ) : session.status === 'completed' ? (
-                            <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-medium">Đã hoàn thành</span>
-                          ) : (
-                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium">Đã hủy</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                          {session.notes || "-"}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <PaginationWithLimit totalPages={totalPages} totalItems={totalItems} />
-        </CardContent>
-      </Card>
+      {sessions.length ? <WeekCalendar weekStart={dateKey(weekStart)} sessions={sessions} /> : (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"><CalendarDays className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-3 font-semibold text-slate-800">Tuần này chưa có lịch tập</h3><p className="mt-1 text-sm text-slate-500">Bấm “Đặt lịch PT” để tạo một hoặc nhiều buổi.</p></div>
+      )}
     </div>
   )
 }

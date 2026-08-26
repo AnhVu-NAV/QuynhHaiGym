@@ -16,13 +16,22 @@ export default function SettingsPage() {
   const [accountName, setAccountName] = useState("")
 
   useEffect(() => {
+    let cancelled = false
     async function load() {
-      const s = await getGymSettings()
-      setBankId(s.bankId || "")
-      setAccountNo(s.accountNo || "")
-      setAccountName(s.accountName || "")
+      try {
+        const s = await getGymSettings()
+        if (cancelled) return
+        setBankId(s.bankId || "")
+        setAccountNo(s.accountNo || "")
+        setAccountName(s.accountName || "")
+      } catch {
+        if (!cancelled) toast.error("Không tải được cấu hình. Vui lòng thử lại.")
+      }
     }
     load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function handleSave(e: React.FormEvent) {
@@ -35,7 +44,7 @@ export default function SettingsPage() {
         accountName: accountName.toUpperCase()
       })
       toast.success("Đã lưu cấu hình thành công!")
-    } catch (error) {
+    } catch {
       toast.error("Lỗi khi lưu cấu hình.")
     } finally {
       setIsSaving(false)

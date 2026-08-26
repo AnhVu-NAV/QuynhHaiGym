@@ -24,7 +24,7 @@ export function DeletePackageButton({ id }: { id: number }) {
       await deletePackage(id)
       toast.success("Đã xóa gói tập")
       setOpen(false)
-    } catch (error) {
+    } catch {
       toast.error("Không thể xóa gói tập này (có thể đã có người đăng ký)")
     } finally {
       setIsDeleting(false)

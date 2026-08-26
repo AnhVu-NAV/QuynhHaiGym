@@ -26,6 +26,9 @@ const formSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
+type PackageFormInput = z.input<typeof formSchema>
+type PackageFormValues = z.output<typeof formSchema>
+
 type PackageDialogProps = {
   mode: "create" | "edit"
   packageData?: {
@@ -41,8 +44,8 @@ type PackageDialogProps = {
 export function PackageDialog({ mode, packageData }: PackageDialogProps) {
   const [open, setOpen] = useState(false)
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema) as any,
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<PackageFormInput, unknown, PackageFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: packageData?.name || "",
       price: packageData?.price || 0,
@@ -52,7 +55,7 @@ export function PackageDialog({ mode, packageData }: PackageDialogProps) {
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: PackageFormValues) {
     try {
       if (mode === "create") {
         await createPackage(values)
@@ -63,7 +66,7 @@ export function PackageDialog({ mode, packageData }: PackageDialogProps) {
       }
       setOpen(false)
       reset()
-    } catch (error) {
+    } catch {
       toast.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
     }
   }

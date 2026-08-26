@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { createClass } from "@/actions/class-actions"
 import { toast } from "sonner"
-import { Plus, Pencil } from "lucide-react"
+import { Plus } from "lucide-react"
 
-export function ClassDialog({ trainers }: { trainers: any[] }) {
+export function ClassDialog({ trainers }: { trainers: Array<{ id: number; fullName: string }> }) {
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -40,7 +40,7 @@ export function ClassDialog({ trainers }: { trainers: any[] }) {
       setOpen(false)
       setName("")
       setDescription("")
-    } catch (error) {
+    } catch {
       toast.error("Lỗi khi tạo lớp học")
     } finally {
       setIsSubmitting(false)

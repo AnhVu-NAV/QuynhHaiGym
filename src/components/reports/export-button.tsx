@@ -40,7 +40,7 @@ export function ExportButton() {
       document.body.removeChild(link)
       
       toast.success("Xuất dữ liệu thành công!")
-    } catch (error) {
+    } catch {
       toast.error("Lỗi khi xuất dữ liệu")
     } finally {
       setIsExporting(false)

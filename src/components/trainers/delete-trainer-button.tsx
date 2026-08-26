@@ -24,7 +24,7 @@ export function DeleteTrainerButton({ id }: { id: number }) {
       await deleteTrainer(id)
       toast.success("Đã xóa Huấn luyện viên")
       setOpen(false)
-    } catch (error) {
+    } catch {
       toast.error("Không thể xóa HLV này do có dữ liệu liên quan (lịch tập, lớp học). Vui lòng chuyển trạng thái sang Không hoạt động thay vì xóa.")
     } finally {
       setIsDeleting(false)

@@ -16,16 +16,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createTrainer, updateTrainer } from "@/actions/trainer-actions"
 import { toast } from "sonner"
-import { Pencil, Plus, Camera, UserPlus } from "lucide-react"
+import { Pencil, Camera, UserPlus } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Họ tên phải có ít nhất 2 ký tự" }),
   phoneNumber: z.string().min(10, { message: "Số điện thoại không hợp lệ" }),
+  email: z.string().email("Email không hợp lệ").or(z.literal("")).optional(),
   specialty: z.string().optional(),
+  employmentType: z.string().default("full_time"),
+  maxConcurrentClients: z.coerce.number().int().min(1).max(20).default(1),
   isActive: z.boolean().default(true),
   avatarUrl: z.string().optional(),
 })
+
+type TrainerFormInput = z.input<typeof formSchema>
+type TrainerFormValues = z.output<typeof formSchema>
 
 type TrainerDialogProps = {
   mode: "create" | "edit"
@@ -33,7 +39,10 @@ type TrainerDialogProps = {
     id: number
     fullName: string
     phoneNumber: string
+    email: string | null
     specialty: string | null
+    employmentType: string
+    maxConcurrentClients: number
     isActive: boolean
     avatarUrl?: string | null
   }
@@ -43,27 +52,40 @@ export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
   const [open, setOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string>(trainerData?.avatarUrl || "")
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema) as any,
+  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<TrainerFormInput, unknown, TrainerFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: trainerData?.fullName || "",
       phoneNumber: trainerData?.phoneNumber || "",
+      email: trainerData?.email || "",
       specialty: trainerData?.specialty || "",
+      employmentType: trainerData?.employmentType || "full_time",
+      maxConcurrentClients: trainerData?.maxConcurrentClients || 1,
       isActive: trainerData?.isActive ?? true,
       avatarUrl: trainerData?.avatarUrl || "",
     },
   })
 
-  const handleUploadSuccess = (result: any) => {
-    if (result.event === "success") {
-      const url = result.info.secure_url;
+  const handleUploadSuccess = (result: unknown) => {
+    if (
+      typeof result === "object"
+      && result !== null
+      && "event" in result
+      && result.event === "success"
+      && "info" in result
+      && typeof result.info === "object"
+      && result.info !== null
+      && "secure_url" in result.info
+      && typeof result.info.secure_url === "string"
+    ) {
+      const url = result.info.secure_url
       setAvatarUrl(url);
       setValue("avatarUrl", url);
       toast.success("Tải ảnh lên thành công!");
     }
   }
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: TrainerFormValues) {
     try {
       if (mode === "create") {
         await createTrainer({ ...values, avatarUrl })
@@ -75,7 +97,7 @@ export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
       setOpen(false)
       reset()
       setAvatarUrl("")
-    } catch (error) {
+    } catch {
       toast.error("Đã có lỗi xảy ra. Vui lòng thử lại.")
     }
   }
@@ -146,8 +168,29 @@ export function TrainerDialog({ mode, trainerData }: TrainerDialogProps) {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="trainerEmail">Email</Label>
+            <Input id="trainerEmail" type="email" placeholder="pt@gym.com" {...register("email")} />
+            {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="specialty">Chuyên môn (Thế mạnh)</Label>
             <Input id="specialty" placeholder="Giảm mỡ, Tăng cơ, Yoga..." {...register("specialty")} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="employmentType">Hình thức</Label>
+              <select id="employmentType" {...register("employmentType")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm">
+                <option value="full_time">Toàn thời gian</option>
+                <option value="part_time">Bán thời gian</option>
+                <option value="contractor">Cộng tác viên</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="maxConcurrentClients">Tối đa cùng giờ</Label>
+              <Input id="maxConcurrentClients" type="number" min={1} max={20} {...register("maxConcurrentClients")} />
+            </div>
           </div>
           
           {mode === "edit" && (

@@ -10,18 +10,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { QueryFilter } from "@/components/ui/query-filter"
 
 export default async function ClassesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const awaitedParams = await searchParams
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
   const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+  const status = typeof awaitedParams.status === 'string' ? awaitedParams.status : "all"
 
-  const { data: classes, totalPages, totalItems } = await getClasses(q, page, limit)
+  const { data: classes, totalPages, totalItems } = await getClasses(q, page, limit, false, status)
   const { data: trainers } = await getTrainers(undefined, 1, 1000, true)
 
   return (
@@ -31,8 +31,9 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
           <h2 className="text-3xl font-bold tracking-tight">Lớp nhóm</h2>
           <p className="text-muted-foreground mt-1">Quản lý danh mục các Lớp Yoga, Zumba, Aerobic...</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <SearchInput placeholder="Tìm tên lớp học..." />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="min-w-48 flex-1"><SearchInput placeholder="Tìm tên lớp học..." /></div>
+          <QueryFilter param="status" label="Trạng thái lớp" options={[{ value: "all", label: "Tất cả lớp" }, { value: "active", label: "Đang mở" }, { value: "inactive", label: "Tạm ngưng" }]} />
           <ClassDialog trainers={trainers} />
         </div>
       </div>

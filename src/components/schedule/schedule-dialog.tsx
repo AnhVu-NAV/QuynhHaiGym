@@ -1,145 +1,117 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { createPTSession } from "@/actions/schedule-actions"
+import { useMemo, useState } from "react"
+import { CalendarPlus, Repeat2, Users } from "lucide-react"
 import { toast } from "sonner"
-import { CalendarPlus, Pencil } from "lucide-react"
+import { createRecurringPTSessions } from "@/actions/schedule-actions"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 type ScheduleDialogProps = {
-  trainers: { id: number; fullName: string }[]
+  trainers: { id: number; fullName: string; maxConcurrentClients: number }[]
   members: { id: number; fullName: string; phoneNumber: string }[]
 }
 
+const days = [
+  { value: 1, label: "T2" }, { value: 2, label: "T3" }, { value: 3, label: "T4" },
+  { value: 4, label: "T5" }, { value: 5, label: "T6" }, { value: 6, label: "T7" }, { value: 0, label: "CN" },
+]
+const fieldClass = "h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+
 export function ScheduleDialog({ trainers, members }: ScheduleDialogProps) {
   const [open, setOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
+  const [submitting, setSubmitting] = useState(false)
   const [trainerId, setTrainerId] = useState("")
   const [memberId, setMemberId] = useState("")
-  const [date, setDate] = useState("")
-  const [time, setTime] = useState("")
-  const [duration, setDuration] = useState("60") // minutes
+  const [startDate, setStartDate] = useState("")
+  const [repeatUntil, setRepeatUntil] = useState("")
+  const [repeatWeekly, setRepeatWeekly] = useState(false)
+  const [weekdays, setWeekdays] = useState<number[]>([])
+  const [startTime, setStartTime] = useState("18:00")
+  const [endTime, setEndTime] = useState("19:00")
   const [notes, setNotes] = useState("")
+  const selectedTrainer = useMemo(() => trainers.find((trainer) => String(trainer.id) === trainerId), [trainerId, trainers])
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!trainerId || !memberId || !date || !time) {
-      return toast.error("Vui lòng điền đầy đủ thông tin bắt buộc")
-    }
+  function changeStartDate(value: string) {
+    setStartDate(value)
+    if (!repeatUntil || repeatUntil < value) setRepeatUntil(value)
+    if (value && !weekdays.length) setWeekdays([new Date(`${value}T12:00:00+07:00`).getDay()])
+  }
 
-    setIsSubmitting(true)
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!trainerId || !memberId || !startDate || !startTime || !endTime) return toast.error("Vui lòng nhập đủ thông tin bắt buộc.")
+    if (repeatWeekly && (!repeatUntil || !weekdays.length)) return toast.error("Hãy chọn ngày kết thúc và ít nhất một thứ trong tuần.")
+    setSubmitting(true)
     try {
-      const startDateTime = new Date(`${date}T${time}`)
-      const endDateTime = new Date(startDateTime.getTime() + parseInt(duration) * 60000)
-
-      await createPTSession({
-        trainerId: parseInt(trainerId),
-        memberId: parseInt(memberId),
-        startTime: startDateTime,
-        endTime: endDateTime,
-        notes
+      const result = await createRecurringPTSessions({
+        trainerId: Number(trainerId), memberId: Number(memberId), startDate,
+        repeatUntil: repeatWeekly ? repeatUntil : startDate,
+        repeatWeekly, weekdays, startTime, endTime, notes,
       })
-      toast.success("Đã đặt lịch tập thành công!")
+      if (result.error) return toast.error(result.error)
+      toast.success(`Đã tạo ${result.count} buổi tập.`)
       setOpen(false)
-      // Reset form
-      setTrainerId("")
       setMemberId("")
-      setDate("")
-      setTime("")
       setNotes("")
-    } catch (error) {
-      toast.error("Có lỗi xảy ra, vui lòng thử lại.")
+    } catch {
+      toast.error("Không thể tạo lịch, vui lòng thử lại.")
     } finally {
-      setIsSubmitting(false)
+      setSubmitting(false)
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger 
-        render={
-          <Button className="gap-2">
-            <CalendarPlus className="h-4 w-4" /> Đặt lịch PT
-          </Button>
-        }
-      />
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Đặt lịch tập cá nhân (1 kèm 1)</DialogTitle>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <Label>Huấn luyện viên</Label>
-            <select 
-              value={trainerId}
-              onChange={(e) => setTrainerId(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="">-- Chọn HLV --</option>
-              {trainers.map(t => (
-                <option key={t.id} value={t.id}>{t.fullName}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Hội viên</Label>
-            <select 
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="">-- Chọn Hội viên --</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.fullName} ({m.phoneNumber})</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+      <DialogTrigger render={<Button className="gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700"><CalendarPlus className="h-4 w-4" /> Đặt lịch PT</Button>} />
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[640px]">
+        <DialogHeader><DialogTitle className="text-xl">Đặt lịch tập với PT</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5 pt-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Ngày tập</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Label>Huấn luyện viên *</Label>
+              <select value={trainerId} onChange={(event) => setTrainerId(event.target.value)} className={fieldClass}>
+                <option value="">Chọn PT</option>
+                {trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.fullName}</option>)}
+              </select>
+              {selectedTrainer && <p className="flex items-center gap-1 text-xs text-emerald-700"><Users className="h-3.5 w-3.5" /> Tối đa {selectedTrainer.maxConcurrentClients} người cùng khung giờ</p>}
             </div>
             <div className="space-y-2">
-              <Label>Giờ bắt đầu</Label>
-              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <Label>Hội viên *</Label>
+              <select value={memberId} onChange={(event) => setMemberId(event.target.value)} className={fieldClass}>
+                <option value="">Chọn hội viên</option>
+                {members.map((member) => <option key={member.id} value={member.id}>{member.fullName} · {member.phoneNumber}</option>)}
+              </select>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Thời lượng (phút)</Label>
-            <select 
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-            >
-              <option value="30">30 phút</option>
-              <option value="60">60 phút (1 tiếng)</option>
-              <option value="90">90 phút</option>
-              <option value="120">120 phút (2 tiếng)</option>
-            </select>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2"><Label>Ngày bắt đầu *</Label><Input type="date" value={startDate} onChange={(event) => changeStartDate(event.target.value)} /></div>
+            <div className="space-y-2"><Label>Giờ bắt đầu *</Label><Input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></div>
+            <div className="space-y-2"><Label>Giờ kết thúc *</Label><Input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} /></div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Ghi chú</Label>
-            <Input placeholder="Mục tiêu buổi tập..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span><span className="flex items-center gap-2 font-semibold text-slate-800"><Repeat2 className="h-4 w-4 text-emerald-600" /> Lặp lại hàng tuần</span><span className="mt-1 block text-xs text-slate-500">Tạo nhiều buổi cùng lúc theo các ngày bạn chọn.</span></span>
+              <input type="checkbox" checked={repeatWeekly} onChange={(event) => setRepeatWeekly(event.target.checked)} className="h-5 w-5 accent-emerald-600" />
+            </label>
+            {repeatWeekly && <div className="mt-4 space-y-4 border-t border-emerald-100 pt-4">
+              <div className="space-y-2">
+                <Label>Chọn ngày tập mỗi tuần</Label>
+                <div className="grid grid-cols-7 gap-2">{days.map((day) => {
+                  const active = weekdays.includes(day.value)
+                  return <button key={day.value} type="button" onClick={() => setWeekdays(active ? weekdays.filter((value) => value !== day.value) : [...weekdays, day.value])} className={`h-10 rounded-xl text-sm font-semibold transition ${active ? "bg-emerald-600 text-white shadow-sm" : "border border-slate-200 bg-white text-slate-600 hover:border-emerald-300"}`}>{day.label}</button>
+                })}</div>
+              </div>
+              <div className="max-w-xs space-y-2"><Label>Lặp đến ngày *</Label><Input type="date" min={startDate} value={repeatUntil} onChange={(event) => setRepeatUntil(event.target.value)} /></div>
+            </div>}
           </div>
 
-          <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
-            {isSubmitting ? "Đang xử lý..." : "Xác nhận đặt lịch"}
-          </Button>
+          <div className="space-y-2"><Label>Ghi chú</Label><Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ví dụ: thân trên, giảm mỡ..." /></div>
+          <Button type="submit" className="h-11 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700" disabled={submitting}>{submitting ? "Đang kiểm tra và tạo lịch..." : "Xác nhận đặt lịch"}</Button>
         </form>
       </DialogContent>
     </Dialog>

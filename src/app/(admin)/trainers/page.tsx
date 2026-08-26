@@ -13,14 +13,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { QueryFilter } from "@/components/ui/query-filter"
 
 export default async function TrainersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const awaitedParams = await searchParams
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
   const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+  const status = typeof awaitedParams.status === 'string' ? awaitedParams.status : "all"
 
-  const { data: trainers, totalPages, totalItems } = await getTrainers(q, page, limit)
+  const { data: trainers, totalPages, totalItems } = await getTrainers(q, page, limit, false, status)
 
   return (
     <div className="space-y-6">
@@ -29,8 +31,17 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
           <h2 className="text-3xl font-bold tracking-tight">Huấn luyện viên</h2>
           <p className="text-muted-foreground mt-1">Quản lý hồ sơ Huấn luyện viên cá nhân (PT).</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <SearchInput placeholder="Tìm tên hoặc SĐT..." />
+          <QueryFilter
+            param="status"
+            label="Trạng thái PT"
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "active", label: "Đang làm việc" },
+              { value: "inactive", label: "Đã nghỉ" },
+            ]}
+          />
           <TrainerDialog mode="create" />
         </div>
       </div>
@@ -68,6 +79,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
                       <div className="font-bold text-slate-800 text-lg">{trainer.fullName}</div>
                       <div className="text-sm text-muted-foreground">{trainer.phoneNumber}</div>
                       <div className="text-sm font-medium text-indigo-600 mt-0.5">{trainer.specialty || "Chưa cập nhật"}</div>
+                      <div className="mt-1 text-xs text-slate-500">Tối đa {trainer.maxConcurrentClients} hội viên cùng giờ</div>
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t flex justify-end gap-2">
@@ -87,6 +99,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
                   <TableHead>Họ tên PT</TableHead>
                   <TableHead>Số điện thoại</TableHead>
                   <TableHead>Chuyên môn</TableHead>
+                  <TableHead>Sức tải</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="text-right">Hành động</TableHead>
                 </TableRow>
@@ -94,7 +107,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
               <TableBody>
                 {trainers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                       Chưa có huấn luyện viên nào.
                     </TableCell>
                   </TableRow>
@@ -115,6 +128,7 @@ export default async function TrainersPage({ searchParams }: { searchParams: Pro
                       </TableCell>
                       <TableCell>{trainer.phoneNumber}</TableCell>
                       <TableCell>{trainer.specialty || "Chưa cập nhật"}</TableCell>
+                      <TableCell>{trainer.maxConcurrentClients} HV cùng giờ</TableCell>
                       <TableCell>
                         {trainer.isActive ? (
                           <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-medium">Hoạt động</span>

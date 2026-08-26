@@ -8,18 +8,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { QueryFilter } from "@/components/ui/query-filter"
 
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const awaitedParams = await searchParams
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
   const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
+  const paymentMethod = typeof awaitedParams.payment === 'string' ? awaitedParams.payment : "all"
 
-  const { data: transactions, totalPages, totalItems } = await getTransactions(q, page, limit)
+  const { data: transactions, totalPages, totalItems } = await getTransactions(q, page, limit, paymentMethod)
 
   return (
     <div className="space-y-6">
@@ -28,8 +28,9 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           <h2 className="text-3xl font-bold tracking-tight">Thanh toán</h2>
           <p className="text-muted-foreground mt-1">Lịch sử thu tiền hội phí và bán gói tập.</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <SearchInput placeholder="Tìm mã GD hoặc tên HV..." />
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <div className="min-w-52 flex-1"><SearchInput placeholder="Tìm mã GD hoặc tên HV..." /></div>
+          <QueryFilter param="payment" label="Phương thức" options={[{ value: "all", label: "Mọi phương thức" }, { value: "cash", label: "Tiền mặt" }, { value: "transfer", label: "Chuyển khoản" }]} />
         </div>
       </div>
       <Card className="shadow-sm border-muted">

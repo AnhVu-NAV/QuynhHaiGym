@@ -49,8 +49,8 @@
 }
 
 :root {
-  --background: oklch(0.98 0 0); /* #fafafa */
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.975 0.008 155);
+  --foreground: oklch(0.2 0.025 250);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -72,7 +72,7 @@
   --chart-3: oklch(0.4 0.1 150);
   --chart-4: oklch(0.7 0.1 150);
   --chart-5: oklch(0.8 0.1 150);
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --sidebar: oklch(1 0 0); /* Pure White Sidebar */
   --sidebar-foreground: oklch(0.3 0 0);
   --sidebar-primary: oklch(0.52 0.15 150);
@@ -122,9 +122,17 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(circle at 100% 0%, color-mix(in oklab, #10b981 7%, transparent), transparent 30rem),
+      radial-gradient(circle at 0% 100%, color-mix(in oklab, #0f172a 4%, transparent), transparent 36rem);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
+  }
+  ::selection {
+    background: #a7f3d0;
+    color: #064e3b;
   }
 }

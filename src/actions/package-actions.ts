@@ -2,22 +2,25 @@
 
 import { db } from "@/db"
 import { membershipPackages } from "@/db/schema"
-import { eq, ilike, sql } from "drizzle-orm"
+import { and, eq, ilike, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
-export async function getPackages(q?: string, page: number = 1, limit: number = 20) {
+export async function getPackages(q?: string, page: number = 1, limit: number = 20, status = "all") {
   const offset = (page - 1) * limit;
 
-  const whereClause = q ? ilike(membershipPackages.name, `%${q}%`) : undefined;
+  const searchClause = q ? ilike(membershipPackages.name, `%${q}%`) : undefined;
+  const statusClause = status === "active" ? eq(membershipPackages.isActive, true) : status === "inactive" ? eq(membershipPackages.isActive, false) : undefined;
+  const whereClause = and(searchClause, statusClause);
 
-  const data = await db.query.membershipPackages.findMany({
-    where: whereClause,
-    orderBy: (packages, { desc }) => [desc(packages.createdAt)],
-    limit,
-    offset
-  })
-
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(membershipPackages).where(whereClause);
+  const [data, [{ count }]] = await Promise.all([
+    db.query.membershipPackages.findMany({
+      where: whereClause,
+      orderBy: (packages, { desc }) => [desc(packages.createdAt)],
+      limit,
+      offset,
+    }),
+    db.select({ count: sql<number>`count(*)` }).from(membershipPackages).where(whereClause),
+  ])
   const totalPages = Math.ceil(Number(count) / limit);
 
   return { data, totalPages, totalItems: Number(count) }

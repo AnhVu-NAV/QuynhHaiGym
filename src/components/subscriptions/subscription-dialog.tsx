@@ -12,7 +12,16 @@ import {
 import { Label } from "@/components/ui/label"
 import { registerSubscription } from "@/actions/subscription-actions"
 import { toast } from "sonner"
-import { CreditCard } from "lucide-react"
+import { CalendarDays, CreditCard } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+function todayInputValue() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
 
 type SubscriptionDialogProps = {
   memberId: number
@@ -28,33 +37,45 @@ type SubscriptionDialogProps = {
     accountNo: string | null
     accountName: string | null
   }
-  activeSub?: any
+  activeSub?: {
+    endDate: Date
+    package?: { name: string } | null
+  }
+  triggerClassName?: string
 }
 
-export function SubscriptionDialog({ memberId, memberName, packages, settings, activeSub }: SubscriptionDialogProps) {
+export function SubscriptionDialog({ memberId, memberName, packages, settings, activeSub, triggerClassName }: SubscriptionDialogProps) {
   const [open, setOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [selectedPackage, setSelectedPackage] = useState<string>(packages[0]?.id.toString() || "")
   const [paymentMethod, setPaymentMethod] = useState("cash")
+  const [startDate, setStartDate] = useState(todayInputValue)
 
   const pkg = packages.find(p => p.id.toString() === selectedPackage)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedPackage) return toast.error("Vui lòng chọn gói tập")
+    if (!startDate) return toast.error("Vui lòng chọn ngày bắt đầu")
+
+    const selectedStartDate = new Date(`${startDate}T00:00:00`)
+    if (Number.isNaN(selectedStartDate.getTime())) {
+      return toast.error("Ngày bắt đầu không hợp lệ")
+    }
 
     setIsSubmitting(true)
     try {
       await registerSubscription({
         memberId,
         packageId: parseInt(selectedPackage),
-        startDate: new Date(),
+        startDate: selectedStartDate,
         paymentMethod
       })
-      toast.success("Đăng ký gói tập thành công!")
+      toast.success("Gia hạn gói tập thành công!")
       setOpen(false)
-    } catch (error) {
+      setStartDate(todayInputValue())
+    } catch {
       toast.error("Có lỗi xảy ra, vui lòng thử lại.")
     } finally {
       setIsSubmitting(false)
@@ -69,7 +90,11 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger 
         render={
-          <Button variant="outline" size="sm" className="h-8 px-3 text-emerald-700 font-medium border-emerald-200 hover:bg-emerald-50 bg-emerald-50/50">
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn("h-8 px-3 text-emerald-700 font-medium border-emerald-200 hover:bg-emerald-50 bg-emerald-50/50", triggerClassName)}
+          >
             <CreditCard className="h-4 w-4 mr-2" /> Gia hạn
           </Button>
         }
@@ -101,6 +126,24 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor={`renewal-start-${memberId}`}>Ngày bắt đầu gia hạn</Label>
+            <div className="relative">
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id={`renewal-start-${memberId}`}
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                required
+                className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Thẻ hết hạn: bắt đầu đúng ngày đã chọn. Thẻ còn hạn: tự nối sau ngày hết hạn hiện tại để không mất ngày.
+            </p>
           </div>
 
           <div className="space-y-2">
