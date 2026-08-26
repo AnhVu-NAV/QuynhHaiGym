@@ -14,7 +14,7 @@ import {
   updateGymHoliday,
 } from "@/actions/settings-actions"
 import { toast } from "sonner"
-import { Building2, CalendarDays, Check, Lightbulb, Pencil, Plus, Save, Trash2, X } from "lucide-react"
+import { BadgeCheck, Building2, CalendarDays, Check, Landmark, Lightbulb, Pencil, Plus, QrCode, Save, ShieldCheck, Trash2, X } from "lucide-react"
 import { getUpcomingVietnamHolidaySuggestions, type VietnamHolidaySuggestion } from "@/lib/vietnam-holidays"
 
 type GymHoliday = Awaited<ReturnType<typeof getGymHolidays>>[number]
@@ -172,6 +172,7 @@ export default function SettingsPage() {
     { id: "vpbank", name: "VPBank" },
     { id: "timodigital", name: "Timo" },
   ]
+  const paymentReady = Boolean(bankId && accountNo && accountName)
 
   return (
     <div className="w-full min-w-0 space-y-6">
@@ -209,60 +210,116 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      {activeTab === "payment" && <Card role="tabpanel" className="w-full border-muted shadow-sm">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-emerald-600" />
-            <CardTitle>Cấu hình Ngân hàng (VietQR)</CardTitle>
+      {activeTab === "payment" && <Card role="tabpanel" className="w-full overflow-hidden border-muted shadow-sm">
+        <CardHeader className="border-b bg-gradient-to-r from-white via-emerald-50/50 to-white pb-5">
+          <div className="flex items-start gap-3">
+            <span className="rounded-2xl bg-emerald-100 p-2.5 text-emerald-700">
+              <Landmark className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <CardTitle className="text-xl">Tài khoản nhận thanh toán</CardTitle>
+              <CardDescription className="mt-1 max-w-2xl leading-6">
+                Thông tin này được dùng để tạo VietQR đúng số tiền khi đăng ký hoặc gia hạn gói tập.
+              </CardDescription>
+            </div>
           </div>
-          <CardDescription>
-            Thiết lập thông tin ngân hàng để tự động tạo mã QR Code thanh toán khi bán gói tập.
-          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="grid gap-4 lg:grid-cols-3">
-            <div className="space-y-2">
-              <Label>Ngân hàng nhận tiền</Label>
-              <select 
-                value={bankId}
-                onChange={(e) => setBankId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm"
-                required
-              >
-                <option value="">-- Chọn ngân hàng --</option>
-                {BANKS.map(b => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
+        <CardContent className="p-4 sm:p-6">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(18rem,.75fr)]">
+            <form onSubmit={handleSave} className="grid min-w-0 gap-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-2 sm:p-5">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="bank-id" className="font-semibold text-slate-700">Ngân hàng nhận tiền</Label>
+                <div className="relative">
+                  <Building2 className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <select
+                    id="bank-id"
+                    value={bankId}
+                    onChange={(e) => setBankId(e.target.value)}
+                    className="flex h-11 w-full appearance-none rounded-xl border border-input bg-white pr-10 pl-10 text-sm shadow-sm outline-none transition focus:border-emerald-500 focus:ring-3 focus:ring-emerald-100"
+                    required
+                  >
+                    <option value="">-- Chọn ngân hàng --</option>
+                    {BANKS.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-xs text-slate-400">▼</span>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label>Số tài khoản</Label>
-              <Input 
-                value={accountNo} 
-                onChange={(e) => setAccountNo(e.target.value.replace(/\D/g, ''))} 
-                placeholder="Ví dụ: 1903123456789"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="account-no" className="font-semibold text-slate-700">Số tài khoản</Label>
+                <Input
+                  id="account-no"
+                  value={accountNo}
+                  onChange={(e) => setAccountNo(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Ví dụ: 1903123456789"
+                  inputMode="numeric"
+                  className="h-11 rounded-xl bg-white"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label>Tên chủ tài khoản</Label>
-              <Input 
-                value={accountName} 
-                onChange={(e) => setAccountName(e.target.value)} 
-                placeholder="Ví dụ: NGUYEN VAN A"
-                className="uppercase"
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="account-name" className="font-semibold text-slate-700">Tên chủ tài khoản</Label>
+                <Input
+                  id="account-name"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Ví dụ: NGUYEN VAN A"
+                  className="h-11 rounded-xl bg-white uppercase"
+                  required
+                />
+              </div>
 
-            <div className="flex items-end lg:col-span-3">
-              <Button type="submit" disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                <Save className="h-4 w-4" /> {isSaving ? "Đang lưu..." : "Lưu cấu hình"}
-              </Button>
-            </div>
-          </form>
+              <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="flex items-center gap-2 text-xs leading-5 text-slate-500">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
+                  Chỉ quản trị viên mới có thể thay đổi thông tin nhận tiền.
+                </p>
+                <Button type="submit" size="lg" disabled={isSaving} className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 sm:w-auto">
+                  <Save className="h-4 w-4" /> {isSaving ? "Đang lưu..." : "Lưu thông tin"}
+                </Button>
+              </div>
+            </form>
+
+            <aside className="relative min-h-72 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-500 p-5 text-white shadow-lg shadow-emerald-900/10 sm:p-6">
+              <div className="absolute -top-16 -right-16 h-44 w-44 rounded-full bg-white/10" />
+              <div className="absolute -bottom-20 -left-12 h-44 w-44 rounded-full bg-teal-300/20" />
+              <div className="relative flex h-full flex-col">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-emerald-50">
+                    <QrCode className="h-5 w-5" /> Xem trước VietQR
+                  </span>
+                  <span className="flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold backdrop-blur">
+                    <BadgeCheck className="h-3.5 w-3.5" /> {paymentReady ? "Sẵn sàng" : "Chưa thiết lập"}
+                  </span>
+                </div>
+
+                <div className="my-6 rounded-2xl border border-white/20 bg-white/12 p-4 backdrop-blur-sm">
+                  <p className="text-xs font-medium text-emerald-100">Ngân hàng</p>
+                  <p className="mt-1 text-lg font-bold tracking-tight">
+                    {BANKS.find((bank) => bank.id === bankId)?.name || "Chưa chọn ngân hàng"}
+                  </p>
+                  <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/15 pt-4">
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-emerald-100">Số tài khoản</p>
+                      <p className="mt-1 truncate font-mono text-sm font-semibold">{accountNo || "Chưa thiết lập"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-emerald-100">Chủ tài khoản</p>
+                      <p className="mt-1 truncate text-sm font-semibold uppercase">{accountName || "Chưa thiết lập"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto space-y-2 text-xs leading-5 text-emerald-50">
+                  <p className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /> QR tự điền đúng số tiền của gói tập.</p>
+                  <p className="flex items-start gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Nội dung chuyển khoản có tên hội viên và gói.</p>
+                </div>
+              </div>
+            </aside>
+          </div>
         </CardContent>
       </Card>}
 
