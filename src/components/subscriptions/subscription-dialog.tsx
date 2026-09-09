@@ -130,7 +130,7 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
 
           <div className="space-y-2">
             <Label htmlFor={`renewal-start-${memberId}`}>Ngày bắt đầu gia hạn</Label>
-            <div className="relative">
+            <div className="relative min-w-0 max-w-full">
               <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 id={`renewal-start-${memberId}`}
@@ -138,7 +138,7 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
                 value={startDate}
                 onChange={(event) => setStartDate(event.target.value)}
                 required
-                className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                className="flex h-9 w-full min-w-0 max-w-full rounded-md border border-input bg-transparent py-2 pl-9 pr-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
             <p className="text-xs text-muted-foreground">

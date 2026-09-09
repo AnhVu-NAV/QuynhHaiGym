@@ -131,6 +131,18 @@
   html {
     @apply font-sans;
   }
+  /* iOS Safari gives native date controls a large intrinsic inline size,
+     which can push them outside narrow dialogs. */
+  input[type="date"] {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    -webkit-min-logical-width: 0;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
   ::selection {
     background: #a7f3d0;
     color: #064e3b;

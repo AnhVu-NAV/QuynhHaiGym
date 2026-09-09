@@ -311,7 +311,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
               </div>
             </div>
 
-            <form onSubmit={handleMemberFormSubmit} className="space-y-4 pb-1">
+            <form onSubmit={handleMemberFormSubmit} className="w-full min-w-0 space-y-4 pb-1">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Họ tên</Label>
                 <Input id="fullName" placeholder="Nguyễn Văn A" {...register("fullName")} />
@@ -401,13 +401,13 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
 
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Ngày bắt đầu <span className="text-red-500">*</span></Label>
-                    <div className="relative">
+                    <div className="relative min-w-0 max-w-full">
                       <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <Input
                         id="startDate"
                         type="date"
                         required
-                        className="pl-9"
+                        className="block min-w-0 max-w-full pl-9"
                         {...register("startDate")}
                       />
                     </div>
