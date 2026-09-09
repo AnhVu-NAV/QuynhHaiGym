@@ -102,7 +102,7 @@ export async function createMember(data: {
   phoneNumber: string
   gender?: string
   avatarUrl?: string
-}, initialSubscription?: {
+}, initialSubscription: {
   packageId: number
   startDate: Date
   paymentMethod: string
@@ -114,37 +114,32 @@ export async function createMember(data: {
     return { success: false, error: "Thông tin hội viên không hợp lệ. Hãy kiểm tra lại họ tên và số điện thoại." }
   }
   data = parsedMember.data
-  const parsedSubscription = initialSubscription
-    ? initialSubscriptionSchema.safeParse(initialSubscription)
-    : null
-  if (parsedSubscription && !parsedSubscription.success) {
+  const parsedSubscription = initialSubscriptionSchema.safeParse(initialSubscription)
+  if (!parsedSubscription.success) {
     return { success: false, error: "Thông tin gói tập hoặc thanh toán không hợp lệ." }
   }
-  const subscriptionInput = parsedSubscription?.data || null
-  if (subscriptionInput) {
-    const existing = await db.query.transactions.findFirst({
-      where: eq(transactions.idempotencyKey, subscriptionInput.idempotencyKey),
-    })
-    if (existing) return { success: true, newMemberId: existing.memberId, duplicate: true }
-  }
-  const pkg = subscriptionInput ? await db.query.membershipPackages.findFirst({
+  const subscriptionInput = parsedSubscription.data
+  const existing = await db.query.transactions.findFirst({
+    where: eq(transactions.idempotencyKey, subscriptionInput.idempotencyKey),
+  })
+  if (existing) return { success: true, newMemberId: existing.memberId, duplicate: true }
+  const pkg = await db.query.membershipPackages.findFirst({
     where: and(eq(membershipPackages.id, subscriptionInput.packageId), eq(membershipPackages.isActive, true)),
-  }) : null
-  if (subscriptionInput && !pkg) {
+  })
+  if (!pkg) {
     return { success: false, error: "Gói tập không tồn tại hoặc đã ngừng bán." }
   }
 
   let result: { memberId: number; subscriptionId: number | null; transactionId: number | null }
   try {
-    if (subscriptionInput && pkg) {
-      type CreatedRow = {
-        member_id: number
-        subscription_id: number
-        transaction_id: number
-      }
-      const baseEndDate = addCalendarMonthsClamped(subscriptionInput.startDate, pkg.durationMonths)
-      const { endDate } = await getHolidayAdjustedEndDate(subscriptionInput.startDate, baseEndDate)
-      const created = await db.execute<CreatedRow>(sql`
+    type CreatedRow = {
+      member_id: number
+      subscription_id: number
+      transaction_id: number
+    }
+    const baseEndDate = addCalendarMonthsClamped(subscriptionInput.startDate, pkg.durationMonths)
+    const { endDate } = await getHolidayAdjustedEndDate(subscriptionInput.startDate, baseEndDate)
+    const created = await db.execute<CreatedRow>(sql`
         with new_member as (
           insert into members (full_name, phone_number, gender, avatar_url, status)
           values (${data.fullName}, ${data.phoneNumber}, ${data.gender || null}, ${data.avatarUrl || null}, 'active')
@@ -170,31 +165,19 @@ export async function createMember(data: {
         from new_member
         join new_subscription on new_subscription.member_id = new_member.id
         join new_transaction on new_transaction.member_id = new_member.id
-      `)
-      const row = created.rows[0]
-      if (!row) throw new Error("Không thể tạo hồ sơ hội viên")
-      result = {
-        memberId: Number(row.member_id),
-        subscriptionId: Number(row.subscription_id),
-        transactionId: Number(row.transaction_id),
-      }
-    } else {
-      const [newMember] = await db.insert(members).values({
-        fullName: data.fullName,
-        phoneNumber: data.phoneNumber,
-        gender: data.gender || null,
-        avatarUrl: data.avatarUrl || null,
-        status: "active",
-      }).returning({ id: members.id })
-      result = { memberId: newMember.id, subscriptionId: null, transactionId: null }
+    `)
+    const row = created.rows[0]
+    if (!row) throw new Error("Không thể tạo hồ sơ hội viên")
+    result = {
+      memberId: Number(row.member_id),
+      subscriptionId: Number(row.subscription_id),
+      transactionId: Number(row.transaction_id),
     }
   } catch (error) {
-    if (subscriptionInput) {
-      const completed = await db.query.transactions.findFirst({
-        where: eq(transactions.idempotencyKey, subscriptionInput.idempotencyKey),
-      })
-      if (completed) return { success: true, newMemberId: completed.memberId, duplicate: true }
-    }
+    const completed = await db.query.transactions.findFirst({
+      where: eq(transactions.idempotencyKey, subscriptionInput.idempotencyKey),
+    })
+    if (completed) return { success: true, newMemberId: completed.memberId, duplicate: true }
     const errorCode = getDatabaseErrorCode(error)
     if (errorCode === "23505") {
       return { success: false, error: "Số điện thoại này đã thuộc về một hội viên khác." }

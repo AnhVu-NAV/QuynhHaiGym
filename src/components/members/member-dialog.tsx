@@ -18,7 +18,7 @@ import { createMember, updateMember } from "@/actions/member-actions"
 import { startFaceEnrollment } from "@/actions/device-actions"
 import type { EnrollmentDeviceOption } from "@/components/devices/face-enrollment-button"
 import { toast } from "sonner"
-import { Pencil, UserPlus, Camera, ArrowLeft } from "lucide-react"
+import { Pencil, UserPlus, Camera, ArrowLeft, ImagePlus, Trash2, CalendarDays } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary'
 
 const formSchema = z.object({
@@ -28,6 +28,7 @@ const formSchema = z.object({
   status: z.string().default("active"),
   avatarUrl: z.string().optional(),
   packageId: z.string().optional(),
+  startDate: z.string().optional(),
   paymentMethod: z.string().optional(),
   enrollFace: z.boolean().default(true),
   deviceId: z.string().optional(),
@@ -62,6 +63,14 @@ type MemberDialogProps = {
   devices?: EnrollmentDeviceOption[]
 }
 
+function todayInputValue() {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, "0")
+  const day = String(today.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName, devices = [] }: MemberDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<"form" | "qr">("form")
@@ -87,6 +96,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
       status: memberData?.status || "active",
       avatarUrl: memberData?.avatarUrl || "",
       packageId: "",
+      startDate: todayInputValue(),
       paymentMethod: "cash",
       enrollFace: Boolean(firstOnlineDevice),
       deviceId: firstOnlineDevice ? String(firstOnlineDevice.id) : "",
@@ -113,6 +123,14 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
   }
 
   async function onFormSubmit(values: MemberFormValues) {
+    if (mode === "create" && !values.packageId) {
+      toast.error("Hãy chọn gói tập cho hội viên")
+      return
+    }
+    if (mode === "create" && !values.startDate) {
+      toast.error("Hãy chọn ngày bắt đầu gói tập")
+      return
+    }
     if (mode === "create" && values.enrollFace && !values.deviceId) {
       toast.error("Hãy chọn máy AI26 cần quét")
       return
@@ -131,14 +149,23 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
     try {
       if (mode === "create") {
         const { enrollFace, deviceId, ...memberValues } = values
+        if (!values.packageId || !values.startDate) {
+          toast.error("Hãy chọn gói tập và ngày bắt đầu")
+          return
+        }
+        const selectedStartDate = new Date(`${values.startDate}T00:00:00`)
+        if (Number.isNaN(selectedStartDate.getTime())) {
+          toast.error("Ngày bắt đầu không hợp lệ")
+          return
+        }
         const result = await createMember(
           { ...memberValues, avatarUrl },
-          values.packageId ? {
+          {
             packageId: parseInt(values.packageId),
             paymentMethod: values.paymentMethod || "cash",
-            startDate: new Date(),
+            startDate: selectedStartDate,
             idempotencyKey: subscriptionIdempotencyKeyRef.current,
-          } : undefined,
+          },
         )
         if (!result.success) {
           toast.error(result.error)
@@ -219,7 +246,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
           )
         }
       />
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="max-h-[94dvh] overflow-y-auto sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>
             {step === "qr" ? "Thanh toán Đăng ký gói" : (mode === "create" ? "Thêm hội viên mới" : "Chỉnh sửa hội viên")}
@@ -228,7 +255,12 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
         
         {step === "form" ? (
           <>
-            <div className="flex flex-col items-center justify-center space-y-4 mb-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="mb-3 text-center">
+                <div className="text-sm font-semibold text-slate-800">Ảnh đại diện</div>
+                <div className="text-xs text-muted-foreground">Không bắt buộc — có thể chụp ngay hoặc chọn ảnh có sẵn</div>
+              </div>
+              <div className="flex flex-col items-center justify-center space-y-3">
               <div className="relative h-24 w-24 rounded-full bg-slate-100 overflow-hidden border-2 border-primary/20 flex items-center justify-center">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" width={96} height={96} loading="lazy" decoding="async" className="object-cover w-full h-full" />
@@ -237,6 +269,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                 )}
               </div>
               
+              <div className="flex flex-wrap items-center justify-center gap-2">
               {cloudinaryApiKey && cloudinaryCloudName ? (
                 <CldUploadWidget
                   config={{ cloud: { apiKey: cloudinaryApiKey, cloudName: cloudinaryCloudName } }}
@@ -246,6 +279,8 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                   options={{
                     maxFiles: 1,
                     multiple: false,
+                    sources: ["camera", "local"],
+                    defaultSource: "camera",
                     maxFileSize: 5_000_000,
                     folder: "gym-avatars",
                     clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
@@ -253,13 +288,30 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                 >
                   {({ open }) => (
                     <Button type="button" variant="outline" size="sm" onClick={() => open()}>
-                      Chụp / Chọn ảnh
+                      <ImagePlus className="mr-2 h-4 w-4" /> Chụp / Chọn ảnh
                     </Button>
                   )}
                 </CldUploadWidget>
               ) : (
                 <Button type="button" variant="outline" size="sm" disabled>Ảnh chưa được cấu hình</Button>
               )}
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => {
+                    setAvatarUrl("")
+                    setValue("avatarUrl", "")
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Bỏ ảnh
+                </Button>
+              )}
+              </div>
+              {!avatarUrl && <p className="text-xs text-muted-foreground">Có thể để trống và thêm ảnh sau.</p>}
+              </div>
             </div>
 
             <form onSubmit={handleMemberFormSubmit} className="space-y-4 pb-1">
@@ -297,7 +349,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                   <label className={`flex items-start gap-3 ${devices.some((device) => device.online) ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}>
                     <input type="checkbox" className="mt-1 h-4 w-4" disabled={!devices.some((device) => device.online)} {...register("enrollFace")} />
                     <span>
-                      <span className="block text-sm font-semibold text-emerald-900">Quét khuôn mặt trên AI26 sau khi lưu</span>
+                      <span className="block text-sm font-semibold text-emerald-900">Đăng ký khuôn mặt AI26 sau khi lưu (không bắt buộc)</span>
                       <span className="block text-xs text-emerald-800">Chọn đúng máy mà hội viên đang đứng trước camera.</span>
                     </span>
                   </label>
@@ -327,24 +379,46 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                 </div>
               )}
 
-              {mode === "create" && packages && packages.length > 0 && (
+              {mode === "create" && (
                 <div className="pt-4 border-t border-slate-100 space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800">Đăng ký gói tập (Tùy chọn)</h4>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">Đăng ký gói tập <span className="text-red-500">*</span></h4>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Hội viên mới phải có gói tập trước khi được lưu.</p>
+                  </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="packageId">Chọn gói tập</Label>
+                    <Label htmlFor="packageId">Chọn gói tập <span className="text-red-500">*</span></Label>
                     <select 
                       id="packageId"
                       {...register("packageId")}
+                      required
                       className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     >
-                      <option value="">-- Chưa đăng ký gói ngay --</option>
-                      {packages.map(p => (
+                      <option value="">-- Chọn gói tập --</option>
+                      {(packages || []).map(p => (
                         <option key={p.id} value={p.id}>
                           {p.name} - {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.price)}
                         </option>
                       ))}
                     </select>
+                    {(!packages || packages.length === 0) && (
+                      <p className="text-sm font-medium text-red-600">Chưa có gói tập đang mở bán. Hãy tạo hoặc mở bán gói tập trước.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate">Ngày bắt đầu <span className="text-red-500">*</span></Label>
+                    <div className="relative">
+                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="startDate"
+                        type="date"
+                        required
+                        className="pl-9"
+                        {...register("startDate")}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Mặc định là hôm nay; có thể chọn ngày mai hoặc một ngày khác.</p>
                   </div>
 
                   <div className="space-y-2">
@@ -361,7 +435,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                 </div>
               )}
 
-              <Button type="submit" className="sticky bottom-0 z-20 mt-2 h-11 w-full bg-emerald-600 shadow-[0_-10px_24px_rgba(255,255,255,.96)] hover:bg-emerald-700" disabled={isSubmitting}>
+              <Button type="submit" className="sticky bottom-0 z-20 mt-2 h-11 w-full bg-emerald-600 shadow-[0_-10px_24px_rgba(255,255,255,.96)] hover:bg-emerald-700" disabled={isSubmitting || (mode === "create" && (!packages || packages.length === 0))}>
                 {isSubmitting ? "Đang xử lý..." : "Tiếp tục"}
               </Button>
             </form>

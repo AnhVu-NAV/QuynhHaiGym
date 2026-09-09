@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MoreHorizontal, ShieldAlert, ShieldCheck, Lock, Unlock, KeyRound } from "lucide-react"
+import { MoreHorizontal, ShieldAlert, ShieldCheck, Lock, Unlock, KeyRound, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -14,17 +14,13 @@ import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { EditUserDialog, type EditableUser } from "./edit-user-dialog"
 
-type ManagedUser = {
-  id: string
-  role: string
-  isLocked: boolean
-}
-
-export function UserActionsMenu({ user }: { user: ManagedUser }) {
+export function UserActionsMenu({ user, isCurrentUser = false }: { user: EditableUser; isCurrentUser?: boolean }) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [password, setPassword] = useState("")
+  const [editOpen, setEditOpen] = useState(false)
   const isLocked = user.isLocked || false
 
   async function handleToggleLock() {
@@ -63,6 +59,9 @@ export function UserActionsMenu({ user }: { user: ManagedUser }) {
         <MoreHorizontal className="h-4 w-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setEditOpen(true)} className="cursor-pointer">
+          <Pencil className="mr-2 h-4 w-4" /> Chỉnh sửa thông tin
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleRoleChange} className="cursor-pointer">
           {user.role === "admin" ? (
             <><ShieldAlert className="w-4 h-4 mr-2" /> Giáng cấp xuống Nhân viên</>
@@ -83,6 +82,7 @@ export function UserActionsMenu({ user }: { user: ManagedUser }) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <EditUserDialog user={user} isCurrentUser={isCurrentUser} open={editOpen} onOpenChange={setEditOpen} />
     <Dialog open={resetOpen} onOpenChange={setResetOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Đặt lại mật khẩu</DialogTitle></DialogHeader>

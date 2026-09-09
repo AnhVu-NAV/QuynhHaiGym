@@ -15,7 +15,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
   const limit = typeof params.limit === "string" ? Number(params.limit) : 20
   const role = typeof params.role === "string" ? params.role : "all"
   const accountStatus = typeof params.status === "string" ? params.status : "all"
-  const { data: users, totalPages, totalItems } = await getInternalUsers(q, page, limit, role, accountStatus)
+  const { data: users, totalPages, totalItems, currentUserId } = await getInternalUsers(q, page, limit, role, accountStatus)
 
   const status = (locked: boolean) => locked ? (
     <span className="flex items-center text-sm font-medium text-red-600"><span className="mr-2 h-2 w-2 rounded-full bg-red-500" />Đã khóa</span>
@@ -49,7 +49,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <div className="truncate text-sm text-muted-foreground">{user.email || user.username}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{user.jobTitle || "Nhân viên"}{user.phoneNumber ? ` · ${user.phoneNumber}` : ""}</div>
                   </div>
-                  <UserActionsMenu user={user} />
+                  <UserActionsMenu user={user} isCurrentUser={user.id === currentUserId} />
                 </div>
                 <div className="flex items-center justify-between border-t pt-3">
                   <Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</Badge>
@@ -69,7 +69,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                     <TableCell>{user.jobTitle || "Nhân viên"}</TableCell>
                     <TableCell><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? "Quản trị viên" : "Nhân viên"}</Badge></TableCell>
                     <TableCell>{status(user.isLocked)}</TableCell>
-                    <TableCell className="text-right"><UserActionsMenu user={user} /></TableCell>
+                    <TableCell className="text-right"><UserActionsMenu user={user} isCurrentUser={user.id === currentUserId} /></TableCell>
                   </TableRow>
                 ))}
                 {!users.length && <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Không tìm thấy dữ liệu.</TableCell></TableRow>}

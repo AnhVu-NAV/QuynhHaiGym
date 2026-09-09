@@ -9,9 +9,10 @@ import { requireAdmin } from "@/lib/auth"
 import { hashPassword } from "@/lib/password"
 import { logAction } from "./audit-actions"
 import { normalizePagination } from "@/lib/pagination"
+import { z } from "zod"
 
 export async function getInternalUsers(q?: string, page = 1, limit = 20, role = "all", status = "all") {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const pagination = normalizePagination(page, limit)
   page = pagination.page
   limit = pagination.limit
@@ -43,6 +44,78 @@ export async function getInternalUsers(q?: string, page = 1, limit = 20, role = 
     }),
     totalPages: Math.ceil(Number(count) / limit),
     totalItems: Number(count),
+    currentUserId: admin.id,
+  }
+}
+
+export async function updateInternalUser(formData: FormData) {
+  const admin = await requireAdmin()
+
+  const userId = String(formData.get("userId") ?? "").trim()
+  const email = String(formData.get("email") ?? "").trim().toLowerCase()
+  const username = String(formData.get("username") ?? "").trim().toLowerCase()
+  const fullName = String(formData.get("fullName") ?? "").trim()
+  const phoneNumber = String(formData.get("phoneNumber") ?? "").trim()
+  const jobTitle = String(formData.get("jobTitle") ?? "").trim()
+  const role = String(formData.get("role") ?? "")
+  const isLocked = String(formData.get("accountStatus") ?? "active") === "locked"
+
+  if (
+    !userId
+    || userId.length > 255
+    || (!email && !username)
+    || (email && (!z.string().email().safeParse(email).success || email.length > 255))
+    || username.length > 255
+    || fullName.length < 2
+    || fullName.length > 255
+    || jobTitle.length > 100
+    || !["admin", "staff"].includes(role)
+    || (phoneNumber && !/^0\d{8,10}$/.test(phoneNumber))
+  ) {
+    return { error: "Thông tin nhân viên chưa hợp lệ. Hãy kiểm tra lại các trường." }
+  }
+
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) })
+  if (!target) return { error: "Tài khoản không tồn tại." }
+
+  if (admin.id === userId && (role !== target.role || isLocked !== target.isLocked)) {
+    return { error: "Bạn không thể tự đổi quyền hoặc khóa tài khoản đang đăng nhập." }
+  }
+
+  const removesActiveAdmin = target.role === "admin"
+    && !target.isLocked
+    && (role !== "admin" || isLocked)
+  if (removesActiveAdmin) {
+    const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users).where(and(
+      eq(users.role, "admin"),
+      eq(users.isLocked, false),
+    ))
+    if (Number(count) <= 1) return { error: "Hệ thống phải còn ít nhất một quản trị viên hoạt động." }
+  }
+
+  try {
+    const securityChanged = role !== target.role || isLocked !== target.isLocked
+    await db.update(users).set({
+      email: email || null,
+      username: username || null,
+      fullName,
+      phoneNumber: phoneNumber || null,
+      jobTitle: jobTitle || null,
+      role,
+      isLocked,
+      sessionVersion: securityChanged ? sql`${users.sessionVersion} + 1` : target.sessionVersion,
+    }).where(eq(users.id, userId))
+    await logAction("UPDATE", "USER", userId, {
+      fullName,
+      role,
+      isLocked,
+      contactUpdated: true,
+    })
+    revalidatePath("/users")
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating user:", error)
+    return { error: "Email hoặc tên đăng nhập đã được sử dụng." }
   }
 }
 
