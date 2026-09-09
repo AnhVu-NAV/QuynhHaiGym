@@ -1,11 +1,16 @@
+import { parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
+
 export function addCalendarMonthsClamped(date: Date, months: number) {
-  const result = new Date(date)
-  const originalDay = result.getDate()
-  result.setDate(1)
-  result.setMonth(result.getMonth() + months)
-  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()
-  result.setDate(Math.min(originalDay, lastDay))
-  return result
+  const [year, month, originalDay] = vietnamDateKey(date).split("-").map(Number)
+  const targetMonth = new Date(Date.UTC(year, month - 1 + months, 1))
+  const targetYear = targetMonth.getUTCFullYear()
+  const targetMonthNumber = targetMonth.getUTCMonth() + 1
+  const lastDay = new Date(Date.UTC(targetYear, targetMonthNumber, 0)).getUTCDate()
+  const targetDay = Math.min(originalDay, lastDay)
+
+  return parseVietnamDateInput(
+    `${targetYear}-${String(targetMonthNumber).padStart(2, "0")}-${String(targetDay).padStart(2, "0")}`,
+  )
 }
 
 export type HolidayDateRange = {
@@ -21,12 +26,8 @@ function parseDateOnlyToDayNumber(value: string) {
   return Math.floor(Date.UTC(year, month - 1, day) / DAY_MS)
 }
 
-function dateToUtcDayNumber(value: Date) {
-  return Math.floor(Date.UTC(
-    value.getUTCFullYear(),
-    value.getUTCMonth(),
-    value.getUTCDate(),
-  ) / DAY_MS)
+function dateToVietnamDayNumber(value: Date) {
+  return parseDateOnlyToDayNumber(vietnamDateKey(value))
 }
 
 function addUtcDays(value: Date, days: number) {
@@ -52,12 +53,12 @@ export function addHolidayPreservationDays(
     for (let day = first; day <= last; day += 1) closedDays.add(day)
   }
 
-  const subscriptionStart = dateToUtcDayNumber(startDate)
+  const subscriptionStart = dateToVietnamDayNumber(startDate)
   let creditedDays = -1
   let adjustedEndDate = new Date(baseEndDate)
 
   while (true) {
-    const adjustedEnd = dateToUtcDayNumber(adjustedEndDate)
+    const adjustedEnd = dateToVietnamDayNumber(adjustedEndDate)
     const nextCredit = [...closedDays].reduce(
       (total, day) => total + (day >= subscriptionStart && day <= adjustedEnd ? 1 : 0),
       0,

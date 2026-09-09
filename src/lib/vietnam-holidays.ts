@@ -1,3 +1,5 @@
+import { vietnamDateKey } from "@/lib/vietnam-time"
+
 export type VietnamHolidaySuggestion = {
   key: string
   name: string
@@ -40,11 +42,8 @@ function findLunarDate(gregorianYear: number, lunarMonth: number, lunarDay: numb
 }
 
 export function getUpcomingVietnamHolidaySuggestions(referenceDate = new Date()) {
-  const today = utcDate(
-    referenceDate.getFullYear(),
-    referenceDate.getMonth() + 1,
-    referenceDate.getDate(),
-  )
+  const [year, month, day] = vietnamDateKey(referenceDate).split("-").map(Number)
+  const today = utcDate(year, month, day)
   const suggestions: VietnamHolidaySuggestion[] = []
 
   for (let year = today.getUTCFullYear(); year <= today.getUTCFullYear() + 2; year += 1) {
