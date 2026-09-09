@@ -286,9 +286,9 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                     clientAllowedFormats: ["jpg", "jpeg", "png", "webp"],
                   }}
                 >
-                  {({ open }) => (
-                    <Button type="button" variant="outline" size="sm" onClick={() => open()}>
-                      <ImagePlus className="mr-2 h-4 w-4" /> Chụp / Chọn ảnh
+                  {({ open, isLoading }) => (
+                    <Button type="button" variant="outline" size="sm" disabled={isLoading} onClick={() => open()}>
+                      <ImagePlus className="mr-2 h-4 w-4" /> {isLoading ? "Đang tải camera..." : "Chụp / Chọn ảnh"}
                     </Button>
                   )}
                 </CldUploadWidget>
