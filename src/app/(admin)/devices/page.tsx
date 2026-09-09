@@ -38,9 +38,9 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {devices.length === 0 ? (
-          <Card className="lg:col-span-2"><CardContent className="py-12 text-center text-muted-foreground">Chưa khai báo thiết bị.</CardContent></Card>
+          <Card className="md:col-span-2 xl:col-span-3"><CardContent className="py-12 text-center text-muted-foreground">Chưa khai báo thiết bị.</CardContent></Card>
         ) : devices.map((device) => {
           const online = device.status === "online"
             && Boolean(device.lastSeenAt)
@@ -65,22 +65,22 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                 ? "Máy vẫn còn nhật ký chưa đồng bộ"
                 : "Máy không có nhật ký cần dọn"
           return (
-            <Card key={device.id}>
+            <Card key={device.id} size="sm">
               <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <CardTitle className="flex items-center gap-2"><Cpu className="h-5 w-5" /> {device.name}</CardTitle>
-                  <Badge variant={online ? "default" : "secondary"}>{online ? "Đang kết nối" : "Ngoại tuyến"}</Badge>
+                <div className="flex items-start justify-between gap-3">
+                  <CardTitle className="flex min-w-0 items-center gap-1.5"><Cpu className="h-4 w-4 shrink-0" /> <span className="truncate">{device.name}</span></CardTitle>
+                  <Badge className="shrink-0 text-[10px]" variant={online ? "default" : "secondary"}>{online ? "Đang kết nối" : "Ngoại tuyến"}</Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <dl className="grid grid-cols-[110px_1fr] gap-2">
+              <CardContent className="space-y-3 text-xs">
+                <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
                   <dt className="text-muted-foreground">Serial</dt><dd className="font-mono">{device.serialNumber}</dd>
                   <dt className="text-muted-foreground">Model</dt><dd>{device.modelName || "Chưa nhận"}</dd>
                   <dt className="text-muted-foreground">Firmware</dt><dd className="break-all">{device.firmware || "Chưa nhận"}</dd>
                   <dt className="text-muted-foreground">Lần cuối</dt><dd>{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString("vi-VN") : "Chưa kết nối"}</dd>
                   <dt className="text-muted-foreground">Khuôn mặt</dt><dd>{device.memberMappings.filter((item) => item.faceStatus === "registered").length} hội viên</dd>
                 </dl>
-                <div className="rounded-xl border bg-slate-50/80 p-3">
+                <div className="rounded-lg border bg-slate-50/80 p-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 font-medium"><Database className="h-4 w-4" /> Nhật ký trên AI26</div>
                     <Badge variant={logPercent !== null && logPercent >= 80 ? "destructive" : "secondary"}>
@@ -91,7 +91,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                     <p className="mt-2 text-xs text-muted-foreground">Kết nối lại máy để nhận dung lượng nhật ký.</p>
                   ) : (
                     <>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
                         <div
                           className={`h-full rounded-full ${logPercent >= 80 ? "bg-red-500" : "bg-emerald-500"}`}
                           style={{ width: `${logPercent}%` }}
@@ -114,7 +114,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                   canCleanLogs={canCleanLogs}
                   cleanDisabledReason={cleanDisabledReason}
                 />
-                <div className="flex justify-end border-t pt-3">
+                <div className="flex justify-end border-t pt-2">
                   <DeleteDeviceButton
                     deviceId={device.id}
                     deviceName={device.name}

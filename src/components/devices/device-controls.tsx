@@ -58,21 +58,21 @@ export function DeviceControls({
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" variant="outline" disabled={!online || pending !== null} onClick={() => send("sync_time")}>
+    <div className="flex flex-wrap gap-1.5">
+      <Button size="sm" className="h-8 px-2 text-xs" variant="outline" disabled={!online || pending !== null} onClick={() => send("sync_time")}>
         {pending === "sync_time" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
         Đồng bộ giờ
       </Button>
-      <Button size="sm" variant="outline" disabled={!online || pending !== null} onClick={() => send("get_info")}>
+      <Button size="sm" className="h-8 px-2 text-xs" variant="outline" disabled={!online || pending !== null} onClick={() => send("get_info")}>
         <Info className="h-4 w-4" /> Đọc thông tin
       </Button>
-      <Button size="sm" variant="outline" disabled={!online || pending !== null} onClick={() => send("get_users")}>
+      <Button size="sm" className="h-8 px-2 text-xs" variant="outline" disabled={!online || pending !== null} onClick={() => send("get_users")}>
         <Users className="h-4 w-4" /> Đồng bộ danh sách
       </Button>
       <Button
         size="sm"
         variant="outline"
-        className="border-amber-300 text-amber-800 hover:bg-amber-50 hover:text-amber-900"
+        className="h-8 border-amber-300 px-2 text-xs text-amber-800 hover:bg-amber-50 hover:text-amber-900"
         disabled={!canCleanLogs || pending !== null}
         title={canCleanLogs ? "Chỉ xóa nhật ký trên AI26" : cleanDisabledReason}
         onClick={cleanLogs}
