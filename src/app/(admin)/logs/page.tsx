@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 import { requireAdmin } from "@/lib/auth"
+import { formatVietnamDateTime } from "@/lib/vietnam-time"
 
 export default async function AuditLogsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await requireAdmin()
@@ -55,7 +56,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
                   logs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {new Date(log.createdAt).toLocaleString('vi-VN')}
+                        {formatVietnamDateTime(log.createdAt)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap font-medium text-slate-700">
                         <span title={log.userId}>{log.user?.fullName || log.user?.email || log.user?.username || log.userId}</span>

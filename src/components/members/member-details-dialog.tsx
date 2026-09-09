@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { getMemberCheckIns } from "@/actions/checkin-actions"
 import { History, CalendarCheck } from "lucide-react"
+import { formatVietnamDate, formatVietnamTime } from "@/lib/vietnam-time"
 
 type MemberDetailsDialogProps = {
   memberData: {
@@ -75,7 +76,7 @@ export function MemberDetailsDialog({ memberData }: MemberDetailsDialogProps) {
           <div>
             <h3 className="font-bold text-lg text-slate-800">{memberData.fullName}</h3>
             <p className="text-sm text-slate-500">{memberData.phoneNumber}</p>
-            <p className="text-xs text-slate-400">Tham gia: {new Date(memberData.joinDate).toLocaleDateString('vi-VN')}</p>
+            <p className="text-xs text-slate-400">Tham gia: {formatVietnamDate(memberData.joinDate)}</p>
           </div>
         </div>
 
@@ -97,10 +98,10 @@ export function MemberDetailsDialog({ memberData }: MemberDetailsDialogProps) {
                   return (
                     <li key={checkin.id} className="flex justify-between items-center bg-white p-2.5 rounded-md border border-slate-100 shadow-sm text-sm">
                       <span className="font-medium text-slate-700">
-                        {d.toLocaleDateString('vi-VN')}
+                        {formatVietnamDate(d)}
                       </span>
                       <span className="text-emerald-600 font-semibold">
-                        {d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        {formatVietnamTime(d)}
                       </span>
                     </li>
                   )

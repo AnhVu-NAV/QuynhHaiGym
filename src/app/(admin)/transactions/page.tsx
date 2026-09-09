@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 import { QueryFilter } from "@/components/ui/query-filter"
+import { formatVietnamDateTime } from "@/lib/vietnam-time"
 
 export default async function TransactionsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const awaitedParams = await searchParams
@@ -49,7 +50,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                 <Card key={tx.id} className="p-4 shadow-sm border-slate-200">
                   <div className="flex justify-between items-center mb-3">
                     <span className="text-xs font-mono text-slate-500">#{tx.id}</span>
-                    <span className="text-xs text-slate-500 font-medium">{new Date(tx.transactionDate).toLocaleString('vi-VN')}</span>
+                    <span className="text-xs text-slate-500 font-medium">{formatVietnamDateTime(tx.transactionDate)}</span>
                   </div>
                   <div className="font-semibold text-slate-800 text-base mb-1">{tx.member.fullName}</div>
                   <div className="text-sm text-slate-600 mb-3">{tx.description}</div>
@@ -92,7 +93,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                   transactions.map((tx) => (
                     <TableRow key={tx.id}>
                       <TableCell className="font-medium text-slate-500">#{tx.id}</TableCell>
-                      <TableCell>{new Date(tx.transactionDate).toLocaleString('vi-VN')}</TableCell>
+                      <TableCell>{formatVietnamDateTime(tx.transactionDate)}</TableCell>
                       <TableCell className="font-medium">{tx.member.fullName}</TableCell>
                       <TableCell>{tx.description}</TableCell>
                       <TableCell>

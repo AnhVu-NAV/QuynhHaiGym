@@ -21,6 +21,7 @@ import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 import { FaceEnrollmentButton } from "@/components/devices/face-enrollment-button"
 import { SubscriptionDialog } from "@/components/subscriptions/subscription-dialog"
 import { requireUser } from "@/lib/auth"
+import { formatVietnamDate } from "@/lib/vietnam-time"
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const currentUser = await requireUser()
@@ -140,7 +141,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                               <Badge variant="destructive" className="h-5 max-w-full px-2 text-[10px] font-medium min-[390px]:text-xs">Đã hết hạn</Badge>
                             ) : (
                               <Badge variant="default" className="h-5 max-w-full truncate border-0 bg-emerald-100 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-200 min-[390px]:text-xs">
-                                Còn hạn đến {new Date(latestSub.endDate).toLocaleDateString('vi-VN')}
+                                Còn hạn đến {formatVietnamDate(latestSub.endDate)}
                               </Badge>
                             )
                           ) : (
@@ -230,10 +231,10 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                           <div className="mb-1.5 text-sm font-medium text-slate-700">{latestSub?.package.name || "Chưa đăng ký gói"}</div>
                           {latestSub ? (
                             isExpired ? (
-                              <Badge variant="destructive" className="font-medium text-xs">Hết hạn {new Date(latestSub.endDate).toLocaleDateString('vi-VN')}</Badge>
+                              <Badge variant="destructive" className="font-medium text-xs">Hết hạn {formatVietnamDate(latestSub.endDate)}</Badge>
                             ) : (
                               <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs border-0">
-                                Còn hạn đến {new Date(latestSub.endDate).toLocaleDateString('vi-VN')}
+                                Còn hạn đến {formatVietnamDate(latestSub.endDate)}
                               </Badge>
                             )
                           ) : (

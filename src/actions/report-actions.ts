@@ -5,14 +5,14 @@ import { members, subscriptions } from "@/db/schema"
 import { eq, and, gte, lte, ilike, inArray, ne, or, sql } from "drizzle-orm"
 import { requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
+import { formatVietnamDate, vietnamDayStart } from "@/lib/vietnam-time"
 
 export async function getExpiringMembers(q?: string, page: number = 1, limit: number = 20) {
   await requireUser()
   const pagination = normalizePagination(page, limit)
   page = pagination.page
   limit = pagination.limit
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const today = vietnamDayStart()
   
   const nextWeek = new Date(today)
   nextWeek.setDate(nextWeek.getDate() + 7)
@@ -70,8 +70,8 @@ export async function getExportData() {
       "Giới tính": m.gender === 'male' ? 'Nam' : m.gender === 'female' ? 'Nữ' : 'Khác',
       "Trạng thái": activeSub ? 'Còn hạn' : 'Hết hạn',
       "Gói đang tập": activeSub ? activeSub.package.name : 'Không có',
-      "Ngày hết hạn": activeSub ? new Date(activeSub.endDate).toLocaleDateString('vi-VN') : '',
-      "Ngày gia nhập": new Date(m.joinDate).toLocaleDateString('vi-VN')
+      "Ngày hết hạn": activeSub ? formatVietnamDate(activeSub.endDate) : '',
+      "Ngày gia nhập": formatVietnamDate(m.joinDate)
     }
   })
 

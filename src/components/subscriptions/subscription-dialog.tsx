@@ -14,13 +14,10 @@ import { registerSubscription } from "@/actions/subscription-actions"
 import { toast } from "sonner"
 import { CalendarDays, CreditCard } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatVietnamDate, parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
 
 function todayInputValue() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, "0")
-  const day = String(today.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  return vietnamDateKey()
 }
 
 type SubscriptionDialogProps = {
@@ -60,7 +57,7 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
     if (!selectedPackage) return toast.error("Vui lòng chọn gói tập")
     if (!startDate) return toast.error("Vui lòng chọn ngày bắt đầu")
 
-    const selectedStartDate = new Date(`${startDate}T00:00:00`)
+    const selectedStartDate = parseVietnamDateInput(startDate)
     if (Number.isNaN(selectedStartDate.getTime())) {
       return toast.error("Ngày bắt đầu không hợp lệ")
     }
@@ -109,7 +106,7 @@ export function SubscriptionDialog({ memberId, memberName, packages, settings, a
         
         {activeSub && (
           <div className="bg-emerald-50 text-emerald-800 p-3 rounded-md text-sm border border-emerald-200">
-            <strong>Lưu ý:</strong> Hội viên đang sử dụng gói <strong>{activeSub.package?.name}</strong> (còn hạn đến {new Date(activeSub.endDate).toLocaleDateString('vi-VN')}). 
+            <strong>Lưu ý:</strong> Hội viên đang sử dụng gói <strong>{activeSub.package?.name}</strong> (còn hạn đến {formatVietnamDate(activeSub.endDate)}).
             <br/>Gói mới sẽ tự động được <strong>cộng dồn ngày</strong>.
           </div>
         )}

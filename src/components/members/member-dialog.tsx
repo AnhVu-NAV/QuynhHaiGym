@@ -20,6 +20,7 @@ import type { EnrollmentDeviceOption } from "@/components/devices/face-enrollmen
 import { toast } from "sonner"
 import { Pencil, UserPlus, Camera, ArrowLeft, ImagePlus, Trash2, CalendarDays } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary'
+import { parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Họ tên phải có ít nhất 2 ký tự" }),
@@ -64,11 +65,7 @@ type MemberDialogProps = {
 }
 
 function todayInputValue() {
-  const today = new Date()
-  const year = today.getFullYear()
-  const month = String(today.getMonth() + 1).padStart(2, "0")
-  const day = String(today.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+  return vietnamDateKey()
 }
 
 export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName, devices = [] }: MemberDialogProps) {
@@ -153,7 +150,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
           toast.error("Hãy chọn gói tập và ngày bắt đầu")
           return
         }
-        const selectedStartDate = new Date(`${values.startDate}T00:00:00`)
+        const selectedStartDate = parseVietnamDateInput(values.startDate)
         if (Number.isNaN(selectedStartDate.getTime())) {
           toast.error("Ngày bắt đầu không hợp lệ")
           return

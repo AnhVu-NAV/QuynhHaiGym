@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireAdmin } from "@/lib/auth"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { formatVietnamDateTime } from "@/lib/vietnam-time"
 
 export default async function DevicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireAdmin()
@@ -77,7 +78,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                   <dt className="text-muted-foreground">Serial</dt><dd className="font-mono">{device.serialNumber}</dd>
                   <dt className="text-muted-foreground">Model</dt><dd>{device.modelName || "Chưa nhận"}</dd>
                   <dt className="text-muted-foreground">Firmware</dt><dd className="break-all">{device.firmware || "Chưa nhận"}</dd>
-                  <dt className="text-muted-foreground">Lần cuối</dt><dd>{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString("vi-VN") : "Chưa kết nối"}</dd>
+                  <dt className="text-muted-foreground">Lần cuối</dt><dd>{device.lastSeenAt ? formatVietnamDateTime(device.lastSeenAt) : "Chưa kết nối"}</dd>
                   <dt className="text-muted-foreground">Khuôn mặt</dt><dd>{device.memberMappings.filter((item) => item.faceStatus === "registered").length} hội viên</dd>
                 </dl>
                 <div className="rounded-lg border bg-slate-50/80 p-2.5">
@@ -100,9 +101,9 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
                         <span>Đã dùng: {device.usedLogCount?.toLocaleString("vi-VN")} / {device.logCapacity?.toLocaleString("vi-VN")}</span>
                         <span>Chưa đồng bộ: {device.unsyncedLogCount?.toLocaleString("vi-VN")}</span>
-                        <span>Cập nhật: {device.logStatsAt ? new Date(device.logStatsAt).toLocaleString("vi-VN") : "—"}</span>
-                        <span>Lưu web gần nhất: {device.lastLogSyncedAt ? new Date(device.lastLogSyncedAt).toLocaleString("vi-VN") : "Chưa có"}</span>
-                        <span>Dọn gần nhất: {device.lastLogCleanupAt ? new Date(device.lastLogCleanupAt).toLocaleString("vi-VN") : "Chưa từng"}</span>
+                        <span>Cập nhật: {device.logStatsAt ? formatVietnamDateTime(device.logStatsAt) : "—"}</span>
+                        <span>Lưu web gần nhất: {device.lastLogSyncedAt ? formatVietnamDateTime(device.lastLogSyncedAt) : "Chưa có"}</span>
+                        <span>Dọn gần nhất: {device.lastLogCleanupAt ? formatVietnamDateTime(device.lastLogCleanupAt) : "Chưa từng"}</span>
                       </div>
                     </>
                   )}
@@ -134,7 +135,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
           <CardContent className="space-y-3">
             {commands.length === 0 ? <p className="text-sm text-muted-foreground">Chưa có lệnh.</p> : commands.map((command) => (
               <div key={command.id} className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0">
-                <div><div className="font-medium">{command.command} · {command.device.name}</div><div className="text-xs text-muted-foreground">{new Date(command.createdAt).toLocaleString("vi-VN")}</div></div>
+                <div><div className="font-medium">{command.command} · {command.device.name}</div><div className="text-xs text-muted-foreground">{formatVietnamDateTime(command.createdAt)}</div></div>
                 <Badge variant={command.status === "failed" ? "destructive" : command.status === "completed" ? "default" : "secondary"}>{command.status}</Badge>
               </div>
             ))}
@@ -147,7 +148,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
           <CardContent className="space-y-3">
             {events.length === 0 ? <p className="text-sm text-muted-foreground">Chưa có sự kiện.</p> : events.map((event) => (
               <div key={event.id} className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0">
-                <div><div className="font-medium">{event.eventType} · {event.device.name}</div><div className="text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString("vi-VN")}</div></div>
+                <div><div className="font-medium">{event.eventType} · {event.device.name}</div><div className="text-xs text-muted-foreground">{formatVietnamDateTime(event.createdAt)}</div></div>
                 <Badge variant="outline">Đã lọc dữ liệu nhạy cảm</Badge>
               </div>
             ))}

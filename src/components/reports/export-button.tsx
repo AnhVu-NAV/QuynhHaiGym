@@ -5,6 +5,7 @@ import { Download } from "lucide-react"
 import { getExportData } from "@/actions/report-actions"
 import { useState } from "react"
 import { toast } from "sonner"
+import { vietnamDateKey } from "@/lib/vietnam-time"
 
 export function ExportButton() {
   const [isExporting, setIsExporting] = useState(false)
@@ -33,7 +34,7 @@ export function ExportButton() {
       const link = document.createElement("a")
       const url = URL.createObjectURL(blob)
       link.setAttribute("href", url)
-      link.setAttribute("download", `bao-cao-hoi-vien-${new Date().toISOString().split('T')[0]}.csv`)
+      link.setAttribute("download", `bao-cao-hoi-vien-${vietnamDateKey()}.csv`)
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()

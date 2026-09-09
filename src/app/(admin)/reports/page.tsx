@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AlertTriangle } from "lucide-react"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
+import { formatVietnamDate } from "@/lib/vietnam-time"
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams
@@ -71,14 +72,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                       <TableCell className="font-medium">{sub.member.phoneNumber}</TableCell>
                       <TableCell>{sub.package.name}</TableCell>
                       <TableCell className="font-bold text-orange-600">
-                        {new Date(sub.endDate).toLocaleDateString('vi-VN')}
+                        {formatVietnamDate(sub.endDate)}
                       </TableCell>
                       <TableCell className="text-right flex items-center justify-end gap-2">
                         <ZaloButton 
                           phoneNumber={sub.member.phoneNumber} 
                           memberName={sub.member.fullName}
                           daysLeft={daysLeft}
-                          endDate={new Date(sub.endDate).toLocaleDateString('vi-VN')}
+                          endDate={formatVietnamDate(sub.endDate)}
                         />
                         <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-full text-xs font-bold">
                           Còn {daysLeft} ngày

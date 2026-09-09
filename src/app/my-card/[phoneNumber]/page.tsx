@@ -3,6 +3,7 @@ import { notFound } from "next/navigation"
 import { QRCodeSVG } from "qrcode.react"
 import { Dumbbell, Calendar, Clock, User, CheckCircle2, XCircle } from "lucide-react"
 import { DownloadCardButton } from "@/components/cards/download-card-button"
+import { formatInVietnam, formatVietnamDate, formatVietnamTime, vietnamDayOfMonth } from "@/lib/vietnam-time"
 
 export const dynamic = "force-dynamic"
 export const metadata = { robots: { index: false, follow: false } }
@@ -108,7 +109,7 @@ export default async function VirtualCardPage({ params }: { params: Promise<{ ph
                       </div>
                     </div>
                     <div className="w-full border-t border-slate-200 dark:border-white/10 pt-3 mt-2">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Có giá trị đến ngày <strong className="text-slate-800 dark:text-white">{new Date(activeSub.endDate).toLocaleDateString('vi-VN')}</strong></p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Có giá trị đến ngày <strong className="text-slate-800 dark:text-white">{formatVietnamDate(activeSub.endDate)}</strong></p>
                     </div>
                   </div>
                 ) : (
@@ -135,14 +136,13 @@ export default async function VirtualCardPage({ params }: { params: Promise<{ ph
               {ptSessions.map(sess => (
                 <div key={sess.id} className="flex gap-4 items-center bg-slate-50/50 dark:bg-white/5 rounded-2xl p-3 border border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors">
                   <div className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl p-2 flex flex-col items-center min-w-[60px] border border-emerald-200 dark:border-emerald-500/20">
-                    <span className="text-[10px] font-bold uppercase">{new Date(sess.startTime).toLocaleDateString('vi-VN', { weekday: 'short' })}</span>
-                    <span className="text-lg font-black leading-none my-0.5">{new Date(sess.startTime).getDate()}</span>
+                    <span className="text-[10px] font-bold uppercase">{formatInVietnam(sess.startTime, { weekday: "short" })}</span>
+                    <span className="text-lg font-black leading-none my-0.5">{vietnamDayOfMonth(sess.startTime)}</span>
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800 dark:text-white flex items-center gap-1.5 text-sm">
                       <Clock className="h-3.5 w-3.5 text-emerald-600/70 dark:text-emerald-400/70" />
-                      {new Date(sess.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - 
-                      {new Date(sess.endTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      {formatVietnamTime(sess.startTime)} - {formatVietnamTime(sess.endTime)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">HLV: <span className="font-medium text-slate-700 dark:text-slate-200">{sess.trainer.fullName}</span></p>
                     {sess.notes && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 italic">{sess.notes}</p>}
