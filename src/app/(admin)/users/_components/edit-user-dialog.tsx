@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Pencil } from "lucide-react"
 import { updateInternalUser } from "@/actions/user-actions"
 import { Button } from "@/components/ui/button"
@@ -37,9 +38,12 @@ export function EditUserDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function onSubmit(formData: FormData) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
     setIsSubmitting(true)
     try {
       const result = await updateInternalUser(formData)
@@ -49,6 +53,7 @@ export function EditUserDialog({
       }
       toast.success("Đã cập nhật thông tin nhân viên")
       onOpenChange(false)
+      router.refresh()
     } catch {
       toast.error("Không thể cập nhật thông tin. Vui lòng thử lại.")
     } finally {
@@ -63,7 +68,7 @@ export function EditUserDialog({
           <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> Chỉnh sửa nhân viên</DialogTitle>
           <DialogDescription>Cập nhật đầy đủ thông tin liên hệ, chức danh và quyền đăng nhập.</DialogDescription>
         </DialogHeader>
-        <form key={`${user.id}:${user.email}:${user.username}:${user.phoneNumber}:${user.jobTitle}:${user.role}:${user.isLocked}`} action={onSubmit} className="space-y-4 pt-2">
+        <form key={`${user.id}:${user.email}:${user.username}:${user.phoneNumber}:${user.jobTitle}:${user.role}:${user.isLocked}`} onSubmit={onSubmit} className="space-y-4 pt-2">
           <input type="hidden" name="userId" value={user.id} />
           <div className="space-y-2">
             <Label htmlFor={`edit-full-name-${user.id}`}>Họ và tên <span className="text-red-500">*</span></Label>

@@ -327,21 +327,17 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
                 {errors.phoneNumber && <p className="text-sm text-red-500">{errors.phoneNumber.message}</p>}
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Giới tính</Label>
-                  <select 
-                    id="gender"
-                    {...register("gender")} 
-                    className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="male">Nam</option>
-                    <option value="female">Nữ</option>
-                    <option value="other">Khác</option>
-                  </select>
-                </div>
-                
-
+              <div className="space-y-2">
+                <Label htmlFor="gender">Giới tính</Label>
+                <select
+                  id="gender"
+                  {...register("gender")}
+                  className="flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="male">Nam</option>
+                  <option value="female">Nữ</option>
+                  <option value="other">Khác</option>
+                </select>
               </div>
 
               {mode === "create" && (
