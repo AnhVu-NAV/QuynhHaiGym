@@ -1,6 +1,7 @@
 import { getMembers } from "@/actions/member-actions"
 import { getPackages } from "@/actions/package-actions"
 import { getGymSettings } from "@/actions/settings-actions"
+import { getDevices } from "@/actions/device-actions"
 import { MemberDialog } from "@/components/members/member-dialog"
 import {
   Table,
@@ -29,11 +30,22 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
   const membership = awaitedParams.membership === "expired" ? "expired" : "valid"
 
-  const { data: members, totalPages, totalItems, counts } = await getMembers(q, page, limit, membership)
-  const { data: packages } = await getPackages(undefined, 1, 1000)
-  const settings = await getGymSettings()
+  const [memberResult, packageResult, settings, deviceList] = await Promise.all([
+    getMembers(q, page, limit, membership),
+    getPackages(undefined, 1, 1000),
+    getGymSettings(),
+    getDevices(),
+  ])
+  const { data: members, totalPages, totalItems, counts } = memberResult
+  const { data: packages } = packageResult
 
   const activePackages = packages.filter(p => p.isActive)
+  const enrollmentDevices = deviceList.map((device) => ({
+    id: device.id,
+    name: device.name,
+    serialNumber: device.serialNumber,
+    online: device.online,
+  }))
   const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
   const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
   const tabHref = (value: "valid" | "expired") => {
@@ -53,7 +65,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           <p className="text-muted-foreground mt-1">Quản lý thông tin và thẻ hội viên.</p>
         </div>
         <div className="w-full sm:w-auto">
-          <MemberDialog mode="create" packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
+          <MemberDialog mode="create" packages={activePackages} settings={settings || undefined} devices={enrollmentDevices} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
         </div>
       </div>
 
@@ -97,14 +109,13 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 const latestSub = member.subscriptions
                   ?.filter((subscription) => subscription.status !== "cancelled")
                   .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
-                const faceMapping = member.deviceMappings?.[0]
                 const isExpired = latestSub
                   ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
                   : true;
                 return (
                   <Card key={member.id} className="relative gap-0 overflow-visible border-slate-200 p-3 shadow-sm min-[390px]:p-4">
                     <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 min-[390px]:right-3 min-[390px]:top-3">
-                      <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
+                      <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} devices={enrollmentDevices} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                       {currentUser.role === "admin" && <DeleteMemberButton id={member.id} />}
                     </div>
                     <div className="flex min-w-0 items-start gap-2.5 pr-[4.75rem] min-[390px]:gap-3 min-[390px]:pr-20">
@@ -141,8 +152,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     <div className="mt-3 border-t pt-3">
                       <FaceEnrollmentButton
                         memberId={member.id}
-                        deviceId={faceMapping?.deviceId}
-                        status={faceMapping?.faceStatus}
+                        devices={enrollmentDevices}
+                        mappings={member.deviceMappings}
                         compact
                       />
                     </div>
@@ -192,7 +203,6 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     const latestSub = member.subscriptions
                       ?.filter((subscription) => subscription.status !== "cancelled")
                       .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
-                    const faceMapping = member.deviceMappings?.[0]
                     const isExpired = latestSub
                       ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
                       : true;
@@ -233,8 +243,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         <TableCell className="py-3">
                           <FaceEnrollmentButton
                             memberId={member.id}
-                            deviceId={faceMapping?.deviceId}
-                            status={faceMapping?.faceStatus}
+                            devices={enrollmentDevices}
+                            mappings={member.deviceMappings}
                             compact
                           />
                         </TableCell>
@@ -254,7 +264,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                             >
                               <ExternalLink className="h-4 w-4 mr-1" /> Thẻ Ảo
                             </Link>
-                            <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
+                            <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} devices={enrollmentDevices} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
                             {currentUser.role === "admin" && <DeleteMemberButton id={member.id} />}
                           </div>
                         </TableCell>

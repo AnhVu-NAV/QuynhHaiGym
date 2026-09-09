@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { saveDevice } from "@/actions/device-actions"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 
 export function DeviceSetupForm() {
   const router = useRouter()
+  const formRef = useRef<HTMLFormElement>(null)
   const [pending, setPending] = useState(false)
 
   async function submit(formData: FormData) {
@@ -19,7 +20,8 @@ export function DeviceSetupForm() {
         name: String(formData.get("name") || ""),
         serialNumber: String(formData.get("serialNumber") || ""),
       })
-      toast.success("Đã lưu máy AI26")
+      toast.success("Đã thêm máy và cấp quyền kết nối")
+      formRef.current?.reset()
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Không lưu được thiết bị")
@@ -29,7 +31,7 @@ export function DeviceSetupForm() {
   }
 
   return (
-    <form action={submit} className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+    <form ref={formRef} action={submit} className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
       <div className="space-y-2">
         <Label htmlFor="device-name">Tên máy</Label>
         <Input id="device-name" name="name" placeholder="Máy cửa chính" required />
@@ -39,7 +41,7 @@ export function DeviceSetupForm() {
         <Input
           id="device-serial"
           name="serialNumber"
-          defaultValue="AYUD15044766"
+          placeholder="Ví dụ: AYUD20048026"
           autoCapitalize="characters"
           required
         />
@@ -50,4 +52,3 @@ export function DeviceSetupForm() {
     </form>
   )
 }
-

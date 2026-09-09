@@ -36,12 +36,20 @@ async function sendTrackedCommand(options: {
 export async function getDevices() {
   await requireUser()
 
-  return db.query.devices.findMany({
+  const deviceList = await db.query.devices.findMany({
+    where: eq(devices.isActive, true),
     orderBy: [desc(devices.createdAt)],
     with: {
       memberMappings: true,
     },
   })
+  const checkedAt = Date.now()
+  return deviceList.map((device) => ({
+    ...device,
+    online: device.status === "online"
+      && Boolean(device.lastSeenAt)
+      && checkedAt - device.lastSeenAt!.getTime() < 90_000,
+  }))
 }
 
 export async function getDeviceDashboard(options: {
@@ -71,6 +79,7 @@ export async function getDeviceDashboard(options: {
     [{ count: eventCount }],
   ] = await Promise.all([
     db.query.devices.findMany({
+      where: eq(devices.isActive, true),
       orderBy: [desc(devices.createdAt)],
       limit: deviceLimit,
       offset: (devicePage - 1) * deviceLimit,
@@ -90,7 +99,7 @@ export async function getDeviceDashboard(options: {
       offset: (eventPage - 1) * eventLimit,
       with: { device: true },
     }),
-    db.select({ count: sql<number>`count(*)` }).from(devices),
+    db.select({ count: sql<number>`count(*)` }).from(devices).where(eq(devices.isActive, true)),
     db.select({ count: sql<number>`count(*)` }).from(deviceCommands).where(gte(deviceCommands.createdAt, retentionCutoff)),
     db.select({ count: sql<number>`count(*)` }).from(deviceEvents).where(gte(deviceEvents.createdAt, retentionCutoff)),
   ])
@@ -113,7 +122,7 @@ export async function saveDevice(data: { serialNumber: string; name: string }) {
 
   const serialNumber = data.serialNumber.trim().toUpperCase()
   const name = data.name.trim()
-  if (!serialNumber || serialNumber.length > 100) {
+  if (!/^[A-Z0-9_-]{4,100}$/.test(serialNumber)) {
     throw new Error("Số serial máy không hợp lệ")
   }
   if (!name || name.length > 255) {
@@ -133,23 +142,62 @@ export async function saveDevice(data: { serialNumber: string; name: string }) {
   return { success: true, device }
 }
 
-export async function startFaceEnrollment(memberId: number, deviceId?: number) {
+export async function deleteDevice(deviceId: number) {
+  await requireAdmin()
+
+  if (!Number.isInteger(deviceId) || deviceId <= 0) {
+    return { success: false, message: "Thiết bị không hợp lệ" }
+  }
+
+  const device = await db.query.devices.findFirst({
+    where: eq(devices.id, deviceId),
+  })
+  if (!device) return { success: false, message: "Không tìm thấy thiết bị" }
+
+  await logAction("DELETE", "DEVICE", device.id, {
+    action: "REMOVE_DEVICE_ACCESS",
+    serialNumber: device.serialNumber,
+    name: device.name,
+  })
+  // Keep a serial tombstone so an in-flight poll cannot recreate and
+  // re-authorize a device immediately after it has been removed.
+  await db.update(devices)
+    .set({ isActive: false, status: "offline", updatedAt: new Date() })
+    .where(eq(devices.id, device.id))
+
+  revalidatePath("/devices")
+  revalidatePath("/members")
+  return {
+    success: true,
+    message: "Đã gỡ máy khỏi web và thu hồi quyền kết nối.",
+  }
+}
+
+export async function startFaceEnrollment(memberId: number, deviceId: number) {
   await requireUser()
+
+  if (!Number.isInteger(deviceId) || deviceId <= 0) {
+    return { success: false, message: "Hãy chọn máy AI26 cần quét" }
+  }
 
   const member = await db.query.members.findFirst({
     where: and(eq(members.id, memberId), ne(members.status, "deleted")),
   })
   if (!member) return { success: false, message: "Không tìm thấy hội viên" }
 
-  const device = deviceId
-    ? await db.query.devices.findFirst({ where: eq(devices.id, deviceId) })
-    : await db.query.devices.findFirst({
-        where: eq(devices.isActive, true),
-        orderBy: [desc(devices.lastSeenAt)],
-      })
+  const device = await db.query.devices.findFirst({
+    where: and(eq(devices.id, deviceId), eq(devices.isActive, true)),
+  })
 
   if (!device) {
-    return { success: false, message: "Chưa khai báo máy AI26 trong mục Máy nhận diện" }
+    return { success: false, message: "Máy AI26 không tồn tại hoặc đã bị gỡ" }
+  }
+
+  const online = device.status === "online"
+    && Boolean(device.lastSeenAt)
+    && Date.now() - device.lastSeenAt!.getTime() < 90_000
+  if (!online) {
+    return { success: false, message: `Máy ${device.name} đang ngoại tuyến. Hãy kiểm tra kết nối rồi thử lại.` }
   }
 
   // Member IDs are stable, unique integers and fit AI26's enrollid field.

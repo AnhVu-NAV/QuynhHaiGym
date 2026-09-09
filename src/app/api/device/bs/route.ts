@@ -1,5 +1,8 @@
 import { z } from "zod"
 import { after } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { db } from "@/db"
+import { devices } from "@/db/schema"
 import { handleGatewayEvent } from "@/lib/ai26-events"
 import { processAi26BsRequest } from "@/lib/ai26-bs-protocol"
 import { claimPendingDeviceCommand } from "@/lib/device-commands"
@@ -10,15 +13,6 @@ export const dynamic = "force-dynamic"
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const payloadSchema = z.record(z.string(), z.unknown())
-
-function getAllowedSerials() {
-  return new Set(
-    (process.env.AI26_ALLOWED_SERIALS || "")
-      .split(",")
-      .map((serial) => serial.trim().toUpperCase())
-      .filter(Boolean)
-  )
-}
 
 function getAllowedIps() {
   return new Set(
@@ -71,10 +65,29 @@ export async function POST(request: Request) {
   const serialNumber = typeof parsed.data.sn === "string"
     ? parsed.data.sn.trim().toUpperCase()
     : ""
-  const allowedSerials = getAllowedSerials()
-
-  if (!serialNumber || !allowedSerials.has(serialNumber)) {
+  if (!serialNumber) {
     console.warn("Rejected AI26 request for unapproved serial", serialNumber || "missing")
+    return json({ result: false, reason: "device not allowed" }, 403)
+  }
+
+  // The web device list is the source of truth. Admins can authorize a new
+  // serial or revoke an existing one immediately without changing Vercel env
+  // variables or redeploying the application.
+  let authorizedDevice: { id: number } | undefined
+  try {
+    authorizedDevice = await db.query.devices.findFirst({
+      where: and(
+        eq(devices.serialNumber, serialNumber),
+        eq(devices.isActive, true),
+      ),
+      columns: { id: true },
+    })
+  } catch (error) {
+    console.error("Unable to verify AI26 device authorization", error)
+    return json({ result: false, reason: "authorization unavailable" }, 503)
+  }
+  if (!authorizedDevice) {
+    console.warn("Rejected AI26 request for unapproved serial", serialNumber)
     return json({ result: false, reason: "device not allowed" }, 403)
   }
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createMember, updateMember } from "@/actions/member-actions"
 import { startFaceEnrollment } from "@/actions/device-actions"
+import type { EnrollmentDeviceOption } from "@/components/devices/face-enrollment-button"
 import { toast } from "sonner"
 import { Pencil, UserPlus, Camera, ArrowLeft } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary'
@@ -29,6 +30,7 @@ const formSchema = z.object({
   packageId: z.string().optional(),
   paymentMethod: z.string().optional(),
   enrollFace: z.boolean().default(true),
+  deviceId: z.string().optional(),
 })
 
 type MemberFormInput = z.input<typeof formSchema>
@@ -57,9 +59,10 @@ type MemberDialogProps = {
   }
   cloudinaryApiKey?: string
   cloudinaryCloudName?: string
+  devices?: EnrollmentDeviceOption[]
 }
 
-export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName }: MemberDialogProps) {
+export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName, devices = [] }: MemberDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<"form" | "qr">("form")
   const [pendingData, setPendingData] = useState<MemberFormValues | null>(null)
@@ -74,7 +77,8 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
     }
   }, [])
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<MemberFormInput, unknown, MemberFormValues>({
+  const firstOnlineDevice = devices.find((device) => device.online)
+  const { register, handleSubmit, formState: { errors }, reset, setValue, control } = useForm<MemberFormInput, unknown, MemberFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: memberData?.fullName || "",
@@ -84,7 +88,8 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
       avatarUrl: memberData?.avatarUrl || "",
       packageId: "",
       paymentMethod: "cash",
-      enrollFace: true,
+      enrollFace: Boolean(firstOnlineDevice),
+      deviceId: firstOnlineDevice ? String(firstOnlineDevice.id) : "",
     },
   })
 
@@ -108,6 +113,10 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
   }
 
   async function onFormSubmit(values: MemberFormValues) {
+    if (mode === "create" && values.enrollFace && !values.deviceId) {
+      toast.error("Hãy chọn máy AI26 cần quét")
+      return
+    }
     if (mode === "create" && values.packageId && values.paymentMethod === "transfer" && settings?.bankId) {
       setPendingData(values)
       setStep("qr")
@@ -121,7 +130,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
     setIsSubmitting(true)
     try {
       if (mode === "create") {
-        const { enrollFace, ...memberValues } = values
+        const { enrollFace, deviceId, ...memberValues } = values
         const result = await createMember(
           { ...memberValues, avatarUrl },
           values.packageId ? {
@@ -143,7 +152,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
         }
 
         if (enrollFace && result.newMemberId) {
-          const faceResult = await startFaceEnrollment(result.newMemberId)
+          const faceResult = await startFaceEnrollment(result.newMemberId, Number(deviceId))
           if (faceResult.success) toast.success(faceResult.message)
           else toast.warning(faceResult.message)
         }
@@ -190,6 +199,7 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
       qrUrl = `https://img.vietqr.io/image/${settings.bankId}-${settings.accountNo}-compact.png?amount=${selectedPkg.price}&addInfo=${encodeURIComponent(`GYM ${pendingData.fullName} goi ${selectedPkg.name}`)}&accountName=${encodeURIComponent(settings.accountName || "")}`
     }
   }
+  const enrollFace = useWatch({ control, name: "enrollFace" })
 
   return (
     <Dialog open={open} onOpenChange={(val) => {
@@ -283,13 +293,38 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
               </div>
 
               {mode === "create" && (
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
-                  <input type="checkbox" className="mt-1 h-4 w-4" {...register("enrollFace")} />
-                  <span>
-                    <span className="block text-sm font-semibold text-emerald-900">Quét khuôn mặt trên AI26 sau khi lưu</span>
-                    <span className="block text-xs text-emerald-800">Máy sẽ bật chế độ đăng ký để hội viên nhìn vào camera.</span>
-                  </span>
-                </label>
+                <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <label className={`flex items-start gap-3 ${devices.some((device) => device.online) ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}>
+                    <input type="checkbox" className="mt-1 h-4 w-4" disabled={!devices.some((device) => device.online)} {...register("enrollFace")} />
+                    <span>
+                      <span className="block text-sm font-semibold text-emerald-900">Quét khuôn mặt trên AI26 sau khi lưu</span>
+                      <span className="block text-xs text-emerald-800">Chọn đúng máy mà hội viên đang đứng trước camera.</span>
+                    </span>
+                  </label>
+                  {enrollFace && (
+                    <div className="space-y-1.5 border-t border-emerald-200 pt-3">
+                      <Label htmlFor="deviceId" className="text-emerald-950">Máy dùng để quét</Label>
+                      <select
+                        id="deviceId"
+                        {...register("deviceId")}
+                        className="flex h-10 w-full rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                      >
+                        <option value="">-- Chọn máy đang trực tuyến --</option>
+                        {devices.map((device) => (
+                          <option key={device.id} value={device.id} disabled={!device.online}>
+                            {device.name} · {device.serialNumber}{device.online ? "" : " · Ngoại tuyến"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {devices.length === 0 && (
+                    <p className="text-xs font-medium text-amber-800">Chưa có máy. Hãy thêm máy tại mục Máy nhận diện.</p>
+                  )}
+                  {devices.length > 0 && !devices.some((device) => device.online) && (
+                    <p className="text-xs font-medium text-amber-800">Tất cả máy đang ngoại tuyến nên chưa thể quét mặt.</p>
+                  )}
+                </div>
               )}
 
               {mode === "create" && packages && packages.length > 0 && (

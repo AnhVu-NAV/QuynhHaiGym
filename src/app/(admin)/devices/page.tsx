@@ -2,6 +2,7 @@ import { Activity, Cpu, Database, Server, ShieldCheck } from "lucide-react"
 import { getDeviceDashboard } from "@/actions/device-actions"
 import { DeviceControls } from "@/components/devices/device-controls"
 import { DeviceSetupForm } from "@/components/devices/device-setup-form"
+import { DeleteDeviceButton } from "@/components/devices/delete-device-button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireAdmin } from "@/lib/auth"
@@ -32,7 +33,7 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
         <CardContent className="space-y-4">
           <DeviceSetupForm />
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Chỉ đổi máy sang server mới sau khi Gateway báo hoạt động. Ảnh check-in và mẫu sinh trắc bị loại bỏ tại Gateway, không lưu vào Neon.
+            Nhập đúng serial rồi lưu để cấp quyền kết nối ngay, không cần sửa biến Vercel hay deploy lại. Sau đó cấu hình tên miền và cổng web trên AI26.
           </div>
         </CardContent>
       </Card>
@@ -113,6 +114,13 @@ export default async function DevicesPage({ searchParams }: { searchParams: Prom
                   canCleanLogs={canCleanLogs}
                   cleanDisabledReason={cleanDisabledReason}
                 />
+                <div className="flex justify-end border-t pt-3">
+                  <DeleteDeviceButton
+                    deviceId={device.id}
+                    deviceName={device.name}
+                    serialNumber={device.serialNumber}
+                  />
+                </div>
               </CardContent>
             </Card>
           )
