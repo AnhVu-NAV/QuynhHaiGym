@@ -44,6 +44,7 @@ export default async function DashboardPage() {
   const now = new Date()
   const todayLabel = formatDateLabel(now)
   const pendingItems = expiringMembers.length + repeatedExpiredScans.length
+  const pendingGroups = Number(expiringMembers.length > 0) + Number(repeatedExpiredScans.length > 0)
   const metrics = [
     {
       title: "Doanh thu tháng này",
@@ -163,7 +164,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="space-y-3" aria-labelledby="pending-heading">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div>
             <h2 id="pending-heading" className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
               Việc cần xử lý
@@ -171,7 +172,7 @@ export default async function DashboardPage() {
             <p className="mt-0.5 text-sm text-slate-500">Các trường hợp quản lý nên kiểm tra trong ngày.</p>
           </div>
           {pendingItems > 0 && (
-            <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
+            <span className="mb-0.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
               {pendingItems} trường hợp
             </span>
           )}
@@ -190,7 +191,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">
             {expiringMembers.length > 0 && (
-              <Card className="min-w-0 gap-0 overflow-hidden border-amber-200/80 bg-white py-0 shadow-sm">
+              <Card className={`min-w-0 gap-0 overflow-hidden border-amber-200/80 bg-white py-0 shadow-sm ${pendingGroups === 1 ? "xl:col-span-2" : ""}`}>
                 <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-amber-100 bg-amber-50/65 px-4 py-4 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700">
@@ -240,7 +241,7 @@ export default async function DashboardPage() {
             )}
 
             {repeatedExpiredScans.length > 0 && (
-              <Card className="min-w-0 gap-0 overflow-hidden border-rose-200/80 bg-white py-0 shadow-sm">
+              <Card className={`min-w-0 gap-0 overflow-hidden border-rose-200/80 bg-white py-0 shadow-sm ${pendingGroups === 1 ? "xl:col-span-2" : ""}`}>
                 <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-rose-100 bg-rose-50/65 px-4 py-4 sm:px-5">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700">
