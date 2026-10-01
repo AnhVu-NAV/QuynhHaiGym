@@ -10,7 +10,21 @@ import { Label } from "@/components/ui/label"
 
 const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" })
 
-export function RefundDialog({ transactionId, memberName, amount, paymentMethod }: { transactionId: number; memberName: string; amount: number; paymentMethod: string | null }) {
+export function RefundDialog({
+  transactionId,
+  memberName,
+  amount,
+  paymentMethod,
+  triggerLabel = "Hoàn tiền",
+  triggerClassName = "",
+}: {
+  transactionId: number
+  memberName: string
+  amount: number
+  paymentMethod: string | null
+  triggerLabel?: string
+  triggerClassName?: string
+}) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
 
@@ -36,7 +50,7 @@ export function RefundDialog({ transactionId, memberName, amount, paymentMethod 
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant="outline" className="h-8 border-rose-200 text-rose-700 hover:bg-rose-50"><RotateCcw className="h-3.5 w-3.5" />Hoàn tiền</Button>} />
+      <DialogTrigger render={<Button size="sm" variant="outline" className={`h-8 border-rose-200 text-rose-700 hover:bg-rose-50 ${triggerClassName}`}><RotateCcw className="h-3.5 w-3.5" />{triggerLabel}</Button>} />
       <DialogContent className="w-[calc(100%-1rem)] p-4 sm:max-w-md sm:p-6">
         <DialogHeader><DialogTitle>Hủy gia hạn & hoàn tiền</DialogTitle></DialogHeader>
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">

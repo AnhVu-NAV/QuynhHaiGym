@@ -23,6 +23,7 @@ import { SubscriptionDialog } from "@/components/subscriptions/subscription-dial
 import { requireUser } from "@/lib/auth"
 import { formatVietnamDate } from "@/lib/vietnam-time"
 import { QueryFilter } from "@/components/ui/query-filter"
+import { RefundDialog } from "@/components/transactions/refund-dialog"
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const currentUser = await requireUser()
@@ -142,6 +143,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 const isExpired = latestSub
                   ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
                   : true;
+                const refundableTransaction = latestSub?.transactions.find((transaction) =>
+                  transaction.direction === "income"
+                  && ["registration", "renewal"].includes(transaction.type)
+                  && transaction.refunds.length === 0
+                )
                 return (
                   <Card key={member.id} className="relative gap-0 overflow-visible border-slate-200 p-3 shadow-sm min-[390px]:p-4">
                     <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 min-[390px]:right-3 min-[390px]:top-3">
@@ -203,6 +209,16 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                       >
                         <ExternalLink className="h-4 w-4 mr-1" /> Thẻ Ảo
                       </Link>
+                      {currentUser.role === "admin" && refundableTransaction && (
+                        <RefundDialog
+                          transactionId={refundableTransaction.id}
+                          memberName={member.fullName}
+                          amount={refundableTransaction.amount}
+                          paymentMethod={refundableTransaction.paymentMethod}
+                          triggerLabel="Hủy gói & hoàn tiền"
+                          triggerClassName="col-span-2 h-9 w-full justify-center rounded-xl text-xs"
+                        />
+                      )}
                     </div>
                   </Card>
                 )
@@ -236,6 +252,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     const isExpired = latestSub
                       ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
                       : true;
+                    const refundableTransaction = latestSub?.transactions.find((transaction) =>
+                      transaction.direction === "income"
+                      && ["registration", "renewal"].includes(transaction.type)
+                      && transaction.refunds.length === 0
+                    )
 
                     return (
                       <TableRow key={member.id} className="hover:bg-emerald-50/30">
@@ -287,6 +308,15 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                               settings={settings || undefined}
                               activeSub={!isExpired && latestSub ? latestSub : undefined}
                             />
+                            {currentUser.role === "admin" && refundableTransaction && (
+                              <RefundDialog
+                                transactionId={refundableTransaction.id}
+                                memberName={member.fullName}
+                                amount={refundableTransaction.amount}
+                                paymentMethod={refundableTransaction.paymentMethod}
+                                triggerLabel="Hủy gói"
+                              />
+                            )}
                             <Link
                               href={`/my-card/${member.publicToken}`}
                               target="_blank"

@@ -55,12 +55,12 @@ export function DeleteMemberButton({ id }: { id: number }) {
         <DialogHeader>
           <DialogTitle className="text-red-600">Xác nhận xóa ẩn danh</DialogTitle>
           <DialogDescription>
-            Thông tin cá nhân và ảnh sẽ bị xóa; gói/lịch bị hủy và AI26 sẽ xóa khuôn mặt. Giao dịch, check-in được giữ ẩn danh để đối soát.
+            Thông tin cá nhân và ảnh sẽ bị xóa; gói/lịch bị hủy và AI26 sẽ xóa khuôn mặt. Các khoản hội phí chưa hoàn sẽ được tạo bút toán hoàn để trừ khỏi doanh thu; giao dịch gốc và check-in vẫn được giữ ẩn danh để đối soát.
           </DialogDescription>
         </DialogHeader>
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
           <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
-          <span>Tôi hiểu hội viên sẽ biến mất khỏi hệ thống vận hành.</span>
+          <span>Tôi hiểu hội viên sẽ biến mất khỏi hệ thống vận hành và doanh thu liên quan sẽ được điều chỉnh giảm.</span>
         </label>
         <div className="flex justify-end gap-3 mt-4">
           <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>Hủy</Button>

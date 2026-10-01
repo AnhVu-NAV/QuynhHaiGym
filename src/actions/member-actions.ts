@@ -117,7 +117,12 @@ export async function getMembers(
       limit,
       offset,
       with: {
-        subscriptions: { with: { package: true } },
+        subscriptions: {
+          with: {
+            package: true,
+            transactions: { with: { refunds: true } },
+          },
+        },
         deviceMappings: { with: { device: true } },
       },
     }),
@@ -324,12 +329,27 @@ function anonymizeAi26Payload(value: unknown, enrollIds: Set<number>): { value: 
 }
 
 export async function deleteMember(id: number) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const member = await db.query.members.findFirst({
     where: and(eq(members.id, id), ne(members.status, "deleted")),
     with: { deviceMappings: true },
   });
   if (!member) return { success: false, error: "Hội viên không tồn tại hoặc đã được xóa ẩn danh." }
+
+  // Deleting a member must not leave their collected membership fees in net
+  // revenue. Keep the original receipts and add one auditable refund entry for
+  // every payment that has not already been reversed.
+  const paidTransactions = await db.query.transactions.findMany({
+    where: and(
+      eq(transactions.memberId, id),
+      eq(transactions.direction, "income"),
+      inArray(transactions.type, ["registration", "renewal"]),
+      eq(transactions.status, "posted")
+    ),
+    with: { refunds: true },
+  })
+  const refundableTransactions = paidTransactions.filter((transaction) => transaction.refunds.length === 0)
+  const refundedAmount = refundableTransactions.reduce((sum, transaction) => sum + transaction.amount, 0)
 
   if (member?.avatarUrl) {
     try {
@@ -364,13 +384,38 @@ export async function deleteMember(id: number) {
   })
 
   const operations: BatchItem<"pg">[] = [
-    db.update(subscriptions).set({ status: "cancelled" }).where(eq(subscriptions.memberId, id)),
+    db.update(subscriptions).set({
+      status: "cancelled",
+      cancelledAt: new Date(),
+      cancelledBy: admin.id,
+      cancellationReason: "Xóa ẩn danh hội viên",
+    }).where(eq(subscriptions.memberId, id)),
     db.update(ptSessions).set({ status: "cancelled", notes: null }).where(eq(ptSessions.memberId, id)),
     db.update(classBookings).set({ status: "cancelled" }).where(eq(classBookings.memberId, id)),
     // Remove commands containing the old name, then queue anonymous lock/delete
     // commands so an offline terminal is cleaned on its next connection.
     db.delete(deviceCommands).where(eq(deviceCommands.memberId, id)),
   ]
+  if (refundableTransactions.length) {
+    operations.push(
+      db.insert(transactions).values(refundableTransactions.map((transaction) => ({
+        memberId: id,
+        subscriptionId: transaction.subscriptionId,
+        amount: transaction.amount,
+        type: "refund",
+        direction: "expense",
+        category: "refund",
+        status: "posted",
+        paymentMethod: transaction.paymentMethod || "cash",
+        description: `Điều chỉnh khi xóa hội viên - giao dịch #${transaction.id}`,
+        note: "Tự động hoàn/điều chỉnh toàn bộ doanh thu chưa được đảo khi xóa ẩn danh hội viên.",
+        refundOfTransactionId: transaction.id,
+        createdBy: admin.id,
+        transactionDate: new Date(),
+        idempotencyKey: `delete-member-${id}-transaction-${transaction.id}`,
+      }))).onConflictDoNothing()
+    )
+  }
   if (member.deviceMappings.length) {
     operations.push(
       db.insert(deviceCommands).values(member.deviceMappings.flatMap((mapping) => [
@@ -416,13 +461,23 @@ export async function deleteMember(id: number) {
   )
   await db.batch(operations as [BatchItem<"pg">, ...BatchItem<"pg">[]])
 
-  await logAction("DELETE", "MEMBER", id, { anonymized: true })
+  await logAction("DELETE", "MEMBER", id, {
+    anonymized: true,
+    refundedTransactions: refundableTransactions.length,
+    refundedAmount,
+  })
   
   revalidatePath("/members")
   revalidatePath("/check-ins")
   revalidatePath("/schedule")
   revalidatePath("/reports")
   revalidatePath("/devices")
+  revalidatePath("/transactions")
   revalidatePath("/")
-  return { success: true, message: "Đã xóa ẩn danh hội viên và xếp lệnh xóa khuôn mặt AI26." }
+  return {
+    success: true,
+    message: refundableTransactions.length
+      ? `Đã xóa ẩn danh và điều chỉnh giảm doanh thu ${refundedAmount.toLocaleString("vi-VN")}đ.`
+      : "Đã xóa ẩn danh hội viên; không còn khoản doanh thu nào cần điều chỉnh.",
+  }
 }
