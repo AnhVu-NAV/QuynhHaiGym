@@ -85,7 +85,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
               })}
             </TableBody></Table>
           </div>
-          <div className="px-3 sm:px-5"><PaginationWithLimit totalPages={totalPages} totalItems={totalItems} /></div>
+          <div className="px-3 sm:px-5"><PaginationWithLimit totalPages={totalPages} totalItems={totalItems} defaultLimit={10} /></div>
         </CardContent>
       </Card>
     </div>
