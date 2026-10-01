@@ -90,27 +90,27 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 sm:flex sm:w-fit">
             <Link
               href={tabHref("valid")}
-              className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:min-w-40 ${membership === "valid" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "valid" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
             >
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              <span className="truncate">Còn hạn</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${membership === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>{counts.valid}</span>
+              <CheckCircle2 className="hidden h-4 w-4 shrink-0 sm:block" />
+              <span className="whitespace-nowrap">Còn hạn</span>
+              <span className={`min-w-5 shrink-0 rounded-full px-1 py-0.5 text-center text-[10px] sm:px-1.5 sm:text-[11px] ${membership === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>{counts.valid}</span>
             </Link>
             <Link
               href={tabHref("expiring")}
-              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors sm:min-w-40 sm:gap-2 sm:px-3 sm:text-sm ${membership === "expiring" ? "bg-white text-amber-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "expiring" ? "bg-white text-amber-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
             >
-              <BellRing className="h-4 w-4 shrink-0" />
-              <span className="truncate">Sắp hết hạn</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] sm:text-[11px] ${membership === "expiring" ? "bg-amber-100 text-amber-700" : "bg-white text-slate-500"}`}>{counts.expiring}</span>
+              <BellRing className="hidden h-4 w-4 shrink-0 sm:block" />
+              <span className="whitespace-nowrap">Sắp hết hạn</span>
+              <span className={`min-w-5 shrink-0 rounded-full px-1 py-0.5 text-center text-[10px] sm:px-1.5 sm:text-[11px] ${membership === "expiring" ? "bg-amber-100 text-amber-700" : "bg-white text-slate-500"}`}>{counts.expiring}</span>
             </Link>
             <Link
               href={tabHref("expired")}
-              className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:min-w-40 ${membership === "expired" ? "bg-white text-rose-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "expired" ? "bg-white text-rose-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
             >
-              <History className="h-4 w-4 shrink-0" />
-              <span className="truncate">Hết hạn</span>
-              <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${membership === "expired" ? "bg-rose-100 text-rose-700" : "bg-white text-slate-500"}`}>{counts.expired}</span>
+              <History className="hidden h-4 w-4 shrink-0 sm:block" />
+              <span className="whitespace-nowrap">Hết hạn</span>
+              <span className={`min-w-5 shrink-0 rounded-full px-1 py-0.5 text-center text-[10px] sm:px-1.5 sm:text-[11px] ${membership === "expired" ? "bg-rose-100 text-rose-700" : "bg-white text-slate-500"}`}>{counts.expired}</span>
             </Link>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
