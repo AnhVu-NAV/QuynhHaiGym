@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 import { QueryFilter } from "@/components/ui/query-filter"
 import { SearchInput } from "@/components/ui/search-input"
+import { DateRangeFilter } from "@/components/ui/date-range-filter"
 import {
   AlertTriangle,
   CheckCircle2,
@@ -69,8 +70,10 @@ export default async function AdminCheckInsPage({
   const sourceParam = getStringParam(params.source)
   const periodParam = getStringParam(params.period)
   const source: "ai26" | "web" | undefined = sourceParam === "ai26" || sourceParam === "web" ? sourceParam : undefined
-  const period: "today" | "7d" | "30d" | undefined = periodParam === "today" || periodParam === "7d" || periodParam === "30d" ? periodParam : undefined
-  const filters = { source, period }
+  const period = ["today", "7d", "30d", "this_month", "last_month"].includes(periodParam) ? periodParam : undefined
+  const from = getStringParam(params.from)
+  const to = getStringParam(params.to)
+  const filters = { source, period, from, to }
 
   const [
     { data: checkIns, totalPages, totalItems },
@@ -86,6 +89,8 @@ export default async function AdminCheckInsPage({
   if (q) tabParams.set("q", q)
   if (source) tabParams.set("source", source)
   if (period) tabParams.set("period", period)
+  if (from) tabParams.set("from", from)
+  if (to) tabParams.set("to", to)
   const validParams = new URLSearchParams(tabParams)
   const failedParams = new URLSearchParams(tabParams)
   failedParams.set("view", "failed")
@@ -191,6 +196,8 @@ export default async function AdminCheckInsPage({
               { value: "today", label: "Hôm nay" },
               { value: "7d", label: "7 ngày gần đây" },
               { value: "30d", label: "30 ngày gần đây" },
+              { value: "this_month", label: "Tháng này" },
+              { value: "last_month", label: "Tháng trước" },
             ]}
           />
           <QueryFilter
@@ -203,6 +210,7 @@ export default async function AdminCheckInsPage({
               { value: "web", label: "Màn hình web" },
             ]}
           />
+          <div className="lg:col-span-3"><DateRangeFilter resetPageParams={CHECK_IN_PAGE_PARAMS} /></div>
         </div>
 
         <nav aria-label="Loại lịch sử check-in" className="grid grid-cols-2 border-t border-slate-100 bg-slate-50/70 p-1.5 sm:flex sm:gap-1 sm:px-5">

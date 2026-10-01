@@ -138,6 +138,9 @@ export const subscriptions = pgTable("subscriptions", {
   baseEndDate: timestamp("base_end_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   status: varchar("status", { length: 50 }).notNull().default("active"), // 'active', 'expired', 'cancelled'
+  cancelledAt: timestamp("cancelled_at"),
+  cancelledBy: varchar("cancelled_by", { length: 255 }).references(() => users.id, { onDelete: "set null" }),
+  cancellationReason: text("cancellation_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("subscriptions_member_validity_idx").on(
@@ -200,17 +203,28 @@ export const failedCheckIns = pgTable("failed_check_ins", {
 // Transactions
 export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
-  memberId: integer("member_id").references(() => members.id).notNull(),
+  memberId: integer("member_id").references(() => members.id),
+  subscriptionId: integer("subscription_id").references(() => subscriptions.id, { onDelete: "set null" }),
   amount: integer("amount").notNull(),
-  type: varchar("type", { length: 50 }).notNull(), // 'registration', 'renewal'
+  type: varchar("type", { length: 50 }).notNull(), // 'registration', 'renewal', 'refund', 'manual'
+  direction: varchar("direction", { length: 20 }).notNull().default("income"), // 'income', 'expense'
+  category: varchar("category", { length: 50 }).notNull().default("membership"),
+  status: varchar("status", { length: 30 }).notNull().default("posted"),
   paymentMethod: varchar("payment_method", { length: 50 }).default("cash"), // 'cash', 'transfer'
   description: text("description"),
+  note: text("note"),
+  refundOfTransactionId: integer("refund_of_transaction_id"),
+  createdBy: varchar("created_by", { length: 255 }).references(() => users.id, { onDelete: "set null" }),
   transactionDate: timestamp("transaction_date").defaultNow().notNull(),
   idempotencyKey: varchar("idempotency_key", { length: 100 }),
 }, (table) => [
   uniqueIndex("transactions_idempotency_key_unique").on(table.idempotencyKey),
+  uniqueIndex("transactions_refund_of_unique").on(table.refundOfTransactionId),
   index("transactions_date_idx").on(table.transactionDate),
   index("transactions_member_date_idx").on(table.memberId, table.transactionDate),
+  index("transactions_direction_date_idx").on(table.direction, table.transactionDate),
+  index("transactions_category_date_idx").on(table.category, table.transactionDate),
+  index("transactions_subscription_idx").on(table.subscriptionId),
 ]);
 
 // Phase 2: Trainers & Classes
@@ -367,7 +381,7 @@ export const deviceEventsRelations = relations(deviceEvents, ({ one }) => ({
   }),
 }));
 
-export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
   member: one(members, {
     fields: [subscriptions.memberId],
     references: [members.id],
@@ -376,6 +390,7 @@ export const subscriptionsRelations = relations(subscriptions, ({ one }) => ({
     fields: [subscriptions.packageId],
     references: [membershipPackages.id],
   }),
+  transactions: many(transactions),
 }));
 
 export const checkInsRelations = relations(checkIns, ({ one }) => ({
@@ -400,11 +415,25 @@ export const failedCheckInsRelations = relations(failedCheckIns, ({ one }) => ({
   }),
 }));
 
-export const transactionsRelations = relations(transactions, ({ one }) => ({
+export const transactionsRelations = relations(transactions, ({ one, many }) => ({
   member: one(members, {
     fields: [transactions.memberId],
     references: [members.id],
   }),
+  subscription: one(subscriptions, {
+    fields: [transactions.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  creator: one(users, {
+    fields: [transactions.createdBy],
+    references: [users.id],
+  }),
+  refundOf: one(transactions, {
+    fields: [transactions.refundOfTransactionId],
+    references: [transactions.id],
+    relationName: "transaction_refunds",
+  }),
+  refunds: many(transactions, { relationName: "transaction_refunds" }),
 }));
 
 export const trainersRelations = relations(trainers, ({ many }) => ({

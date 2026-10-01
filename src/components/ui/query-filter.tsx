@@ -8,13 +8,14 @@ type QueryFilterProps = {
   label: string
   options: Array<{ value: string; label: string }>
   resetPageParams?: string[]
+  defaultValue?: string
 }
 
-export function QueryFilter({ param, label, options, resetPageParams = ["page"] }: QueryFilterProps) {
+export function QueryFilter({ param, label, options, resetPageParams = ["page"], defaultValue = "all" }: QueryFilterProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const value = searchParams.get(param) || "all"
+  const value = searchParams.get(param) || defaultValue
 
   return (
     <label className="relative flex min-w-40 items-center">
@@ -24,7 +25,7 @@ export function QueryFilter({ param, label, options, resetPageParams = ["page"] 
         value={value}
         onChange={(event) => {
           const params = new URLSearchParams(searchParams.toString())
-          if (event.target.value === "all") params.delete(param)
+          if (event.target.value === "all" && defaultValue === "all") params.delete(param)
           else params.set(param, event.target.value)
           resetPageParams.forEach((pageParam) => params.set(pageParam, "1"))
           router.replace(`${pathname}?${params.toString()}`, { scroll: false })

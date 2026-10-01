@@ -15,13 +15,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DeleteMemberButton } from "@/components/members/delete-member-button"
 import Link from "next/link"
-import { CheckCircle2, ExternalLink, History } from "lucide-react"
+import { BellRing, CheckCircle2, ExternalLink, History } from "lucide-react"
 import { SearchInput } from "@/components/ui/search-input"
 import { PaginationWithLimit } from "@/components/ui/pagination-with-limit"
 import { FaceEnrollmentButton } from "@/components/devices/face-enrollment-button"
 import { SubscriptionDialog } from "@/components/subscriptions/subscription-dialog"
 import { requireUser } from "@/lib/auth"
 import { formatVietnamDate } from "@/lib/vietnam-time"
+import { QueryFilter } from "@/components/ui/query-filter"
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const currentUser = await requireUser()
@@ -29,10 +30,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const q = typeof awaitedParams.q === 'string' ? awaitedParams.q : ""
   const page = typeof awaitedParams.page === 'string' ? Number(awaitedParams.page) : 1
   const limit = typeof awaitedParams.limit === 'string' ? Number(awaitedParams.limit) : 20
-  const membership = awaitedParams.membership === "expired" ? "expired" : "valid"
+  const membership = awaitedParams.membership === "expired" || awaitedParams.membership === "expiring"
+    ? awaitedParams.membership
+    : "valid"
+  const expiry = typeof awaitedParams.expiry === "string" ? awaitedParams.expiry : "7"
+  const packageId = typeof awaitedParams.package === "string" ? Number(awaitedParams.package) : undefined
 
   const [memberResult, packageResult, settings, deviceList] = await Promise.all([
-    getMembers(q, page, limit, membership),
+    getMembers(q, page, limit, membership, expiry, packageId),
     getPackages(undefined, 1, 1000),
     getGymSettings(),
     getDevices(),
@@ -49,11 +54,13 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   }))
   const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
   const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
-  const tabHref = (value: "valid" | "expired") => {
+  const tabHref = (value: "valid" | "expiring" | "expired") => {
     const params = new URLSearchParams()
     params.set("membership", value)
     if (q) params.set("q", q)
     if (limit !== 20) params.set("limit", String(limit))
+    if (packageId) params.set("package", String(packageId))
+    if (value === "expiring") params.set("expiry", expiry)
     params.set("page", "1")
     return `/members?${params.toString()}`
   }
@@ -79,7 +86,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             </div>
             <div className="w-full lg:w-80"><SearchInput placeholder="Tìm tên hoặc SĐT..." /></div>
           </div>
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:flex sm:w-fit">
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 sm:flex sm:w-fit">
             <Link
               href={tabHref("valid")}
               className={`flex min-w-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors sm:min-w-40 ${membership === "valid" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
@@ -87,6 +94,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span className="truncate">Còn hạn</span>
               <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${membership === "valid" ? "bg-emerald-100 text-emerald-700" : "bg-white text-slate-500"}`}>{counts.valid}</span>
+            </Link>
+            <Link
+              href={tabHref("expiring")}
+              className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition-colors sm:min-w-40 sm:gap-2 sm:px-3 sm:text-sm ${membership === "expiring" ? "bg-white text-amber-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+            >
+              <BellRing className="h-4 w-4 shrink-0" />
+              <span className="truncate">Sắp hết hạn</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] sm:text-[11px] ${membership === "expiring" ? "bg-amber-100 text-amber-700" : "bg-white text-slate-500"}`}>{counts.expiring}</span>
             </Link>
             <Link
               href={tabHref("expired")}
@@ -97,13 +112,27 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
               <span className={`rounded-full px-1.5 py-0.5 text-[11px] ${membership === "expired" ? "bg-rose-100 text-rose-700" : "bg-white text-slate-500"}`}>{counts.expired}</span>
             </Link>
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {membership === "expiring" && (
+              <QueryFilter param="expiry" label="Thời gian sắp hết hạn" options={[
+                { value: "7", label: "Trong 7 ngày" },
+                { value: "15", label: "Trong 15 ngày" },
+                { value: "30", label: "Trong 30 ngày" },
+                { value: "month", label: "Đến cuối tháng" },
+              ]} />
+            )}
+            <QueryFilter param="package" label="Gói tập" options={[
+              { value: "all", label: "Tất cả gói tập" },
+              ...packages.map((item) => ({ value: String(item.id), label: item.name })),
+            ]} />
+          </div>
         </CardHeader>
         <CardContent className="overflow-hidden p-0">
           {/* Mobile View */}
           <div className="grid gap-3 p-2 min-[360px]:p-3 sm:p-4 md:hidden">
             {members.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground bg-slate-50 rounded-lg">
-                {membership === "valid" ? "Chưa có hội viên còn hạn." : "Chưa có hội viên hết hạn."}
+                {membership === "valid" ? "Chưa có hội viên còn hạn." : membership === "expiring" ? "Không có hội viên sắp hết hạn trong khoảng đã chọn." : "Chưa có hội viên hết hạn."}
               </div>
             ) : (
               members.map((member) => {
@@ -196,7 +225,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 {members.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
-                      {membership === "valid" ? "Chưa có hội viên còn hạn." : "Chưa có hội viên hết hạn."}
+                      {membership === "valid" ? "Chưa có hội viên còn hạn." : membership === "expiring" ? "Không có hội viên sắp hết hạn trong khoảng đã chọn." : "Chưa có hội viên hết hạn."}
                     </TableCell>
                   </TableRow>
                 ) : (

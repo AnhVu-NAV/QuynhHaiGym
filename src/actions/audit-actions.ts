@@ -3,8 +3,9 @@
 import { db } from "@/db"
 import { auditLogs } from "@/db/schema"
 import { getCurrentUser, requireAdmin } from "@/lib/auth"
-import { and, desc, gte, sql, ilike, or } from "drizzle-orm"
+import { and, desc, eq, gte, lt, sql, ilike, or } from "drizzle-orm"
 import { normalizePagination } from "@/lib/pagination"
+import { resolveDateRange } from "@/lib/date-range"
 
 export async function logAction(
   action: "CREATE" | "UPDATE" | "DELETE",
@@ -28,7 +29,7 @@ export async function logAction(
   }
 }
 
-export async function getAuditLogs(q?: string, page: number = 1, limit: number = 10) {
+export async function getAuditLogs(q?: string, page: number = 1, limit: number = 10, filters: { period?: string; from?: string; to?: string; action?: string; entity?: string } = {}) {
   await requireAdmin()
   const pagination = normalizePagination(page, limit, 10)
   page = pagination.page
@@ -43,7 +44,15 @@ export async function getAuditLogs(q?: string, page: number = 1, limit: number =
       ilike(auditLogs.details, `%${q}%`)
     )
     : undefined
-  const whereClause = and(gte(auditLogs.createdAt, retentionCutoff), searchClause)
+  const range = resolveDateRange(filters.period, filters.from, filters.to)
+  const whereClause = and(
+    gte(auditLogs.createdAt, retentionCutoff),
+    searchClause,
+    range.start ? gte(auditLogs.createdAt, range.start) : undefined,
+    range.end ? lt(auditLogs.createdAt, range.end) : undefined,
+    ["CREATE", "UPDATE", "DELETE"].includes(filters.action || "") ? eq(auditLogs.action, filters.action!) : undefined,
+    filters.entity && filters.entity !== "all" ? eq(auditLogs.entityType, filters.entity) : undefined,
+  )
 
   const [data, [{ count }]] = await Promise.all([
     db.query.auditLogs.findMany({

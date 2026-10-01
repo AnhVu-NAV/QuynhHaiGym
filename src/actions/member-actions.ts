@@ -12,6 +12,7 @@ import { normalizePagination } from "@/lib/pagination"
 import { z } from "zod"
 import { addCalendarMonthsClamped } from "@/lib/membership"
 import { getHolidayAdjustedEndDate } from "@/lib/holiday-preservation"
+import { parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
 import type { BatchItem } from "drizzle-orm/batch"
 
 const memberCreateSchema = z.object({
@@ -42,7 +43,14 @@ function getDatabaseErrorCode(error: unknown) {
   return ""
 }
 
-export async function getMembers(q?: string, page: number = 1, limit: number = 20, membership = "valid") {
+export async function getMembers(
+  q?: string,
+  page: number = 1,
+  limit: number = 20,
+  membership = "valid",
+  expiry = "7",
+  packageId?: number
+) {
   await requireUser()
   const pagination = normalizePagination(page, limit)
   page = pagination.page
@@ -66,13 +74,43 @@ export async function getMembers(q?: string, page: number = 1, limit: number = 2
       and valid_subscription.end_date >= now()
       and valid_subscription.status = 'active'
   )`
+  const latestPaidEnd = sql<Date>`(
+    select max(latest_subscription.end_date)
+    from subscriptions as latest_subscription
+    where latest_subscription.member_id = "members"."id"
+      and latest_subscription.status = 'active'
+  )`
+  const expiryDays = ["7", "15", "30"].includes(expiry) ? Number(expiry) : 7
+  const todayKey = vietnamDateKey()
+  let cutoff = parseVietnamDateInput(todayKey)
+  if (expiry === "month") {
+    const [year, month] = todayKey.split("-").map(Number)
+    const next = new Date(Date.UTC(year, month, 1))
+    cutoff = parseVietnamDateInput(`${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-01`)
+  } else {
+    // Include the full final Vietnamese calendar day.
+    cutoff = new Date(cutoff.getTime() + (expiryDays + 1) * 86_400_000)
+  }
+  const expiringSubscription = sql<boolean>`(${hasValidSubscription}) and ${latestPaidEnd} <= ${cutoff}`
   const membershipClause = membership === "expired"
     ? sql<boolean>`not (${hasValidSubscription})`
-    : hasValidSubscription
-  const baseWhereClause = and(ne(members.status, "deleted"), searchClause)
+    : membership === "expiring"
+      ? expiringSubscription
+      : hasValidSubscription
+  const packageClause = packageId && Number.isInteger(packageId) && packageId > 0
+    ? sql<boolean>`(
+        select latest_package.package_id
+        from subscriptions as latest_package
+        where latest_package.member_id = "members"."id"
+          and latest_package.status <> 'cancelled'
+        order by latest_package.end_date desc
+        limit 1
+      ) = ${packageId}`
+    : undefined
+  const baseWhereClause = and(ne(members.status, "deleted"), searchClause, packageClause)
   const whereClause = and(baseWhereClause, membershipClause)
 
-  const [data, [{ count }], [{ validCount }], [{ expiredCount }]] = await Promise.all([
+  const [data, [{ count }], [{ validCount }], [{ expiredCount }], [{ expiringCount }]] = await Promise.all([
     db.query.members.findMany({
       where: whereClause,
       orderBy: (member, { desc }) => [desc(member.createdAt)],
@@ -86,6 +124,7 @@ export async function getMembers(q?: string, page: number = 1, limit: number = 2
     db.select({ count: sql<number>`count(*)` }).from(members).where(whereClause),
     db.select({ validCount: sql<number>`count(*)` }).from(members).where(and(baseWhereClause, hasValidSubscription)),
     db.select({ expiredCount: sql<number>`count(*)` }).from(members).where(and(baseWhereClause, sql<boolean>`not (${hasValidSubscription})`)),
+    db.select({ expiringCount: sql<number>`count(*)` }).from(members).where(and(baseWhereClause, expiringSubscription)),
   ])
   const totalPages = Math.ceil(Number(count) / limit)
 
@@ -93,7 +132,7 @@ export async function getMembers(q?: string, page: number = 1, limit: number = 2
     data,
     totalPages,
     totalItems: Number(count),
-    counts: { valid: Number(validCount), expired: Number(expiredCount) },
+    counts: { valid: Number(validCount), expired: Number(expiredCount), expiring: Number(expiringCount) },
   }
 }
 
@@ -108,7 +147,7 @@ export async function createMember(data: {
   paymentMethod: string
   idempotencyKey: string
 }) {
-  await requireUser()
+  const user = await requireUser()
   const parsedMember = memberCreateSchema.safeParse(data)
   if (!parsedMember.success) {
     return { success: false, error: "Thông tin hội viên không hợp lệ. Hãy kiểm tra lại họ tên và số điện thoại." }
@@ -151,12 +190,15 @@ export async function createMember(data: {
           returning id, member_id
         ), new_transaction as (
           insert into transactions (
-            member_id, amount, type, payment_method, description, idempotency_key
+            member_id, subscription_id, amount, type, direction, category, status,
+            payment_method, description, idempotency_key, created_by
           )
-          select id, ${pkg.price}, 'registration', ${subscriptionInput.paymentMethod},
-            ${`Đăng ký gói: ${pkg.name}`}, ${subscriptionInput.idempotencyKey}
+          select new_member.id, new_subscription.id, ${pkg.price}, 'registration',
+            'income', 'membership', 'posted', ${subscriptionInput.paymentMethod},
+            ${`Đăng ký gói: ${pkg.name}`}, ${subscriptionInput.idempotencyKey}, ${user.id}
           from new_member
-          returning id, member_id
+          join new_subscription on new_subscription.member_id = new_member.id
+          returning id, member_id, subscription_id
         )
         select
           new_member.id::int as member_id,
@@ -164,7 +206,7 @@ export async function createMember(data: {
           new_transaction.id::int as transaction_id
         from new_member
         join new_subscription on new_subscription.member_id = new_member.id
-        join new_transaction on new_transaction.member_id = new_member.id
+        join new_transaction on new_transaction.subscription_id = new_subscription.id
     `)
     const row = created.rows[0]
     if (!row) throw new Error("Không thể tạo hồ sơ hội viên")

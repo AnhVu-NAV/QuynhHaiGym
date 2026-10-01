@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Dumbbell, Users, QrCode, CreditCard, LayoutDashboard, Calendar, UsersRound, Settings, Shield, Cpu } from "lucide-react"
+import { Banknote, Dumbbell, Users, QrCode, CreditCard, LayoutDashboard, Calendar, UsersRound, Settings, Shield, Cpu } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 
@@ -37,6 +37,7 @@ export function AppSidebar({ role = "staff" }: AppSidebarProps) {
     { title: "Hội viên", url: "/members", icon: Users },
     { title: "Check-in", url: "/check-ins", icon: QrCode },
     { title: "Gói tập", url: "/packages", icon: CreditCard },
+    { title: "Thu chi", url: "/transactions", icon: Banknote },
   ]
 
   const ptItems = [

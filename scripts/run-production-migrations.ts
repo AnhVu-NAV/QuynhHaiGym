@@ -21,6 +21,7 @@ async function main() {
     "0008_performance_indexes.sql",
     "0009_security_integrity.sql",
     "0010_holiday_preservation.sql",
+    "0011_cashflow_refunds.sql",
   ]
 
   for (const fileName of migrationFiles) {

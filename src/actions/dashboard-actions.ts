@@ -65,7 +65,7 @@ export async function getDashboardStats() {
         inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(ne(members.status, "deleted"))),
       )),
     db.select({
-      total: sql<number>`coalesce(sum(${transactions.amount}), 0)::int`,
+      total: sql<number>`coalesce(sum(case when ${transactions.direction} = 'expense' then -${transactions.amount} else ${transactions.amount} end), 0)::int`,
       count: sql<number>`count(*)::int`,
     })
       .from(transactions)
@@ -77,7 +77,7 @@ export async function getDashboardStats() {
     }),
     db.select({
       month: chartMonth,
-      total: sql<number>`coalesce(sum(${transactions.amount}), 0)::int`,
+      total: sql<number>`coalesce(sum(case when ${transactions.direction} = 'expense' then -${transactions.amount} else ${transactions.amount} end), 0)::int`,
     })
       .from(transactions)
       .where(gte(transactions.transactionDate, firstChartMonth))

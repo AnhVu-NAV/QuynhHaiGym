@@ -2,7 +2,7 @@
 
 import { db } from "@/db"
 import { subscriptions, transactions, membershipPackages, members } from "@/db/schema"
-import { eq, and, gte, desc, ne } from "drizzle-orm"
+import { eq, and, gte, desc, ne, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 import { logAction } from "./audit-actions"
@@ -27,7 +27,7 @@ export async function registerSubscription(data: {
   paymentMethod: string
   idempotencyKey: string
 }) {
-  await requireUser()
+  const user = await requireUser()
   const parsed = subscriptionSchema.safeParse(data)
   if (!parsed.success) throw new Error("Thông tin đăng ký gói không hợp lệ")
   data = parsed.data
@@ -81,34 +81,37 @@ export async function registerSubscription(data: {
   const baseEndDate = addCalendarMonthsClamped(actualStartDate, pkg.durationMonths)
   const { endDate } = await getHolidayAdjustedEndDate(actualStartDate, baseEndDate)
 
-  // Neon HTTP supports atomic batch transactions rather than interactive
-  // db.transaction callbacks. The unique idempotency key makes a retry safe.
+  // A single CTE links the payment to the exact subscription atomically. This
+  // is required for safe cancellation/refund and makes retries idempotent.
   let result: { subscriptionId: number; transactionId: number }
   try {
-    const [newSubs, newTransactions] = await db.batch([
-      db.insert(subscriptions).values({
-        memberId: data.memberId,
-        packageId: data.packageId,
-        startDate: actualStartDate,
-        baseEndDate,
-        endDate,
-        status: "active",
-      }).returning({ id: subscriptions.id }),
-      db.insert(transactions).values({
-        memberId: data.memberId,
-        amount: pkg.price,
-        type: previousSub ? "renewal" : "registration",
-        paymentMethod: data.paymentMethod,
-        description: `${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`,
-        transactionDate: new Date(),
-        idempotencyKey: data.idempotencyKey,
-      }).returning({ id: transactions.id }),
-      db.update(members).set({ status: "active" }).where(eq(members.id, data.memberId)),
-    ])
-    const newSub = newSubs[0]
-    const newTransaction = newTransactions[0]
-    if (!newSub || !newTransaction) throw new Error("Không thể ghi nhận giao dịch gia hạn")
-    result = { subscriptionId: newSub.id, transactionId: newTransaction.id }
+    type CreatedRow = { subscription_id: number; transaction_id: number }
+    const created = await db.execute<CreatedRow>(sql`
+      with new_subscription as (
+        insert into subscriptions (member_id, package_id, start_date, base_end_date, end_date, status)
+        values (${data.memberId}, ${data.packageId}, ${actualStartDate}, ${baseEndDate}, ${endDate}, 'active')
+        returning id, member_id
+      ), new_transaction as (
+        insert into transactions (
+          member_id, subscription_id, amount, type, direction, category, status,
+          payment_method, description, transaction_date, idempotency_key, created_by
+        )
+        select member_id, id, ${pkg.price}, ${previousSub ? "renewal" : "registration"},
+          'income', 'membership', 'posted', ${data.paymentMethod},
+          ${`${previousSub ? "Gia hạn" : "Đăng ký"} gói: ${pkg.name}`}, now(), ${data.idempotencyKey}, ${user.id}
+        from new_subscription
+        returning id, subscription_id
+      ), updated_member as (
+        update members set status = 'active', updated_at = now()
+        where id = ${data.memberId}
+      )
+      select new_subscription.id::int as subscription_id, new_transaction.id::int as transaction_id
+      from new_subscription
+      join new_transaction on new_transaction.subscription_id = new_subscription.id
+    `)
+    const row = created.rows[0]
+    if (!row) throw new Error("Không thể ghi nhận giao dịch gia hạn")
+    result = { subscriptionId: Number(row.subscription_id), transactionId: Number(row.transaction_id) }
   } catch (error) {
     // A simultaneous retry can lose the race after the pre-check above. The
     // database unique key is authoritative, so return the already completed

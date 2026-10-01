@@ -16,6 +16,7 @@
     "db:migrate:production": "tsx scripts/run-production-migrations.ts",
     "db:preflight:security": "tsx scripts/preflight-security-migration.ts",
     "db:sanitize:ai26": "tsx scripts/sanitize-ai26-events.ts",
+    "test:cashflow:production": "tsx scripts/verify-cashflow-production.ts",
     "admin:set-password": "tsx scripts/set-admin-password.ts"
   },
   "dependencies": {

@@ -232,8 +232,8 @@ export default async function DashboardPage() {
                       </div>
                     )
                   })}
-                  <Link href="/members" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-amber-700 hover:text-amber-800">
-                    Xem danh sách hội viên <ArrowRight className="size-4" />
+                  <Link href="/members?membership=expiring&expiry=7" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-amber-700 hover:text-amber-800">
+                    Xem tất cả sắp hết hạn <ArrowRight className="size-4" />
                   </Link>
                 </CardContent>
               </Card>
@@ -330,18 +330,20 @@ export default async function DashboardPage() {
                 {stats.recentTransactions.map((tx) => (
                   <div key={tx.id} className="flex min-w-0 items-center gap-3 py-4">
                     <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-emerald-50 text-sm font-bold uppercase text-emerald-700 ring-1 ring-emerald-100">
-                      {tx.member.avatarUrl ? (
+                      {tx.member?.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={tx.member.avatarUrl} alt="" className="size-10 object-cover" />
                       ) : (
-                        tx.member.fullName.charAt(0)
+                        tx.member?.fullName.charAt(0) || (tx.direction === "expense" ? "C" : "T")
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-900">{tx.member.fullName}</p>
+                      <p className="truncate text-sm font-semibold text-slate-900">{tx.member?.fullName || "Chi phí phòng tập"}</p>
                       <p className="mt-0.5 truncate text-xs text-slate-500">{tx.description}</p>
                     </div>
-                    <p className="shrink-0 text-sm font-bold text-emerald-700">+{currencyFormatter.format(tx.amount)}</p>
+                    <p className={`shrink-0 text-sm font-bold ${tx.direction === "expense" ? "text-rose-600" : "text-emerald-700"}`}>
+                      {tx.direction === "expense" ? "−" : "+"}{currencyFormatter.format(tx.amount)}
+                    </p>
                   </div>
                 ))}
               </div>

@@ -2,18 +2,21 @@
 
 import { db } from "@/db"
 import { members, subscriptions, checkIns, failedCheckIns } from "@/db/schema"
-import { and, desc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql } from "drizzle-orm"
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { consumeRateLimit, getRequestIp } from "@/lib/rate-limit"
 import { requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
+import { resolveDateRange } from "@/lib/date-range"
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
 
 type CheckInFilters = {
   source?: "ai26" | "web"
-  period?: "today" | "7d" | "30d"
+  period?: string
+  from?: string
+  to?: string
 }
 
 function getVietnamDayStart(date = new Date()) {
@@ -26,14 +29,6 @@ function getVietnamDayStart(date = new Date()) {
   const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ""
 
   return new Date(`${value("year")}-${value("month")}-${value("day")}T00:00:00+07:00`)
-}
-
-function getPeriodStart(period?: CheckInFilters["period"]) {
-  if (!period) return undefined
-
-  const start = getVietnamDayStart()
-  const daysBack = period === "today" ? 0 : period === "7d" ? 6 : 29
-  return new Date(start.getTime() - daysBack * 86_400_000)
 }
 
 export async function processCheckIn(rawIdentifier: string) {
@@ -140,11 +135,12 @@ export async function getRecentCheckIns(
     ne(members.status, "deleted"),
     q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
   )
-  const periodStart = getPeriodStart(filters.period)
+  const range = resolveDateRange(filters.period, filters.from, filters.to)
   const whereClause = and(
     inArray(checkIns.memberId, db.select({ id: members.id }).from(members).where(memberClause)),
     filters.source ? eq(checkIns.source, filters.source) : undefined,
-    periodStart ? gte(checkIns.checkInTime, periodStart) : undefined,
+    range.start ? gte(checkIns.checkInTime, range.start) : undefined,
+    range.end ? lt(checkIns.checkInTime, range.end) : undefined,
   )
 
   const [data, [{ count }]] = await Promise.all([
@@ -188,7 +184,7 @@ export async function getRecentFailedCheckIns(
     ne(members.status, "deleted"),
     q ? or(ilike(members.fullName, `%${q}%`), ilike(members.phoneNumber, `%${q}%`)) : undefined,
   ))
-  const periodStart = getPeriodStart(filters.period)
+  const range = resolveDateRange(filters.period, filters.from, filters.to)
   const whereClause = and(
     or(isNull(failedCheckIns.memberId), inArray(failedCheckIns.memberId, visibleMemberIds)),
     q ? or(
@@ -197,7 +193,8 @@ export async function getRecentFailedCheckIns(
       ilike(failedCheckIns.message, `%${q}%`),
     ) : undefined,
     filters.source ? eq(failedCheckIns.source, filters.source) : undefined,
-    periodStart ? gte(failedCheckIns.attemptedAt, periodStart) : undefined,
+    range.start ? gte(failedCheckIns.attemptedAt, range.start) : undefined,
+    range.end ? lt(failedCheckIns.attemptedAt, range.end) : undefined,
   )
 
   const [data, [{ count }]] = await Promise.all([
