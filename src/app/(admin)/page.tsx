@@ -206,12 +206,12 @@ export default async function DashboardPage() {
                     {expiringMembers.length}
                   </span>
                 </CardHeader>
-                <CardContent className="divide-y divide-slate-100 px-4 sm:px-5">
+                <CardContent className={`px-4 sm:px-5 ${pendingGroups === 1 ? "xl:grid xl:grid-cols-2" : "divide-y divide-slate-100"}`}>
                   {expiringMembers.slice(0, 4).map((sub) => {
                     const daysLeft = Math.ceil((new Date(sub.endDate).getTime() - now.getTime()) / 86_400_000)
 
                     return (
-                      <div key={sub.id} className="flex items-center gap-3 py-3.5">
+                      <div key={sub.id} className={`flex items-center gap-3 py-3.5 ${pendingGroups === 1 ? "border-b border-slate-100 xl:odd:pr-5 xl:even:border-l xl:even:pl-5" : ""}`}>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-900">{sub.member.fullName}</p>
                           <p className="mt-0.5 truncate text-xs text-slate-500">
@@ -233,7 +233,7 @@ export default async function DashboardPage() {
                       </div>
                     )
                   })}
-                  <Link href="/members?membership=expiring&expiry=7" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-amber-700 hover:text-amber-800">
+                  <Link href="/members?membership=expiring&expiry=7" className={`flex items-center justify-center gap-1 py-3 text-sm font-semibold text-amber-700 hover:text-amber-800 ${pendingGroups === 1 ? "xl:col-span-2" : ""}`}>
                     Xem tất cả sắp hết hạn <ArrowRight className="size-4" />
                   </Link>
                 </CardContent>
@@ -256,9 +256,9 @@ export default async function DashboardPage() {
                     {repeatedExpiredScans.length}
                   </span>
                 </CardHeader>
-                <CardContent className="divide-y divide-slate-100 px-4 sm:px-5">
+                <CardContent className={`px-4 sm:px-5 ${pendingGroups === 1 ? "xl:grid xl:grid-cols-2" : "divide-y divide-slate-100"}`}>
                   {repeatedExpiredScans.slice(0, 4).map((item) => (
-                    <div key={item.member.id} className="flex items-center gap-3 py-3.5">
+                    <div key={item.member.id} className={`flex items-center gap-3 py-3.5 ${pendingGroups === 1 ? "border-b border-slate-100 xl:odd:pr-5 xl:even:border-l xl:even:pl-5" : ""}`}>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-900">{item.member.fullName}</p>
                         <p className="mt-0.5 truncate text-xs text-slate-500">
@@ -279,7 +279,7 @@ export default async function DashboardPage() {
                       </Button>
                     </div>
                   ))}
-                  <Link href="/check-ins?view=failed#failed-check-ins" className="flex items-center justify-center gap-1 py-3 text-sm font-semibold text-rose-700 hover:text-rose-800">
+                  <Link href="/check-ins?view=failed#failed-check-ins" className={`flex items-center justify-center gap-1 py-3 text-sm font-semibold text-rose-700 hover:text-rose-800 ${pendingGroups === 1 ? "xl:col-span-2" : ""}`}>
                     Xem check-in không hợp lệ <ArrowRight className="size-4" />
                   </Link>
                 </CardContent>
