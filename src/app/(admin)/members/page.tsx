@@ -84,18 +84,18 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       </div>
 
       <Card className="gap-0 border-muted py-0 shadow-sm">
-        <CardHeader className="gap-4 border-b border-slate-200/80 px-3 py-4 sm:px-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <CardHeader className="gap-3 border-b border-slate-200/80 px-3 py-3.5 sm:gap-4 sm:px-5 sm:py-4">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle className="text-lg">Danh sách hội viên</CardTitle>
               <p className="mt-0.5 text-sm text-muted-foreground">Chọn nhóm để quản lý và gia hạn nhanh.</p>
             </div>
             <div className="w-full lg:w-80"><SearchInput placeholder="Tìm tên hoặc SĐT..." /></div>
           </div>
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 sm:flex sm:w-fit">
+          <nav aria-label="Trạng thái hội viên" className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 sm:flex sm:w-fit">
             <Link
               href={tabHref("valid")}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "valid" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:text-sm ${membership === "valid" ? "bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
             >
               <CheckCircle2 className="hidden h-4 w-4 shrink-0 sm:block" />
               <span className="whitespace-nowrap">Còn hạn</span>
@@ -103,7 +103,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             </Link>
             <Link
               href={tabHref("expiring")}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "expiring" ? "bg-white text-amber-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:text-sm ${membership === "expiring" ? "bg-white text-amber-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
             >
               <BellRing className="hidden h-4 w-4 shrink-0 sm:block" />
               <span className="whitespace-nowrap">Sắp hết hạn</span>
@@ -111,23 +111,24 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             </Link>
             <Link
               href={tabHref("expired")}
-              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2.5 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:py-2 sm:text-sm ${membership === "expired" ? "bg-white text-rose-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+              className={`flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-semibold transition-colors min-[360px]:text-xs sm:min-w-40 sm:gap-2 sm:px-3 sm:text-sm ${membership === "expired" ? "bg-white text-rose-700 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
             >
               <History className="hidden h-4 w-4 shrink-0 sm:block" />
               <span className="whitespace-nowrap">Hết hạn</span>
               <span className={`min-w-5 shrink-0 rounded-full px-1 py-0.5 text-center text-[10px] sm:px-1.5 sm:text-[11px] ${membership === "expired" ? "bg-rose-100 text-rose-700" : "bg-white text-slate-500"}`}>{counts.expired}</span>
             </Link>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          </nav>
+          <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            <span className="shrink-0 text-xs font-medium text-slate-500">Lọc:</span>
             {membership === "expiring" && (
-              <QueryFilter param="expiry" label="Thời gian sắp hết hạn" options={[
+              <QueryFilter compact className="min-w-[8.75rem] flex-1 sm:flex-none" param="expiry" label="Thời gian sắp hết hạn" options={[
                 { value: "7", label: "Trong 7 ngày" },
                 { value: "15", label: "Trong 15 ngày" },
                 { value: "30", label: "Trong 30 ngày" },
                 { value: "month", label: "Đến cuối tháng" },
               ]} />
             )}
-            <QueryFilter param="package" label="Gói tập" options={[
+            <QueryFilter compact className="min-w-[9rem] flex-1 sm:min-w-48 sm:flex-none" param="package" label="Gói tập" options={[
               { value: "all", label: "Tất cả gói tập" },
               ...packages.map((item) => ({ value: String(item.id), label: item.name })),
             ]} />
@@ -137,8 +138,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
           {/* Mobile View */}
           <div className="grid gap-3 p-2 min-[360px]:p-3 sm:p-4 md:hidden">
             {members.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground bg-slate-50 rounded-lg">
-                {membership === "valid" ? "Chưa có hội viên còn hạn." : membership === "expiring" ? "Không có hội viên sắp hết hạn trong khoảng đã chọn." : "Chưa có hội viên hết hạn."}
+              <div className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-muted-foreground">
+                {q ? "Không tìm thấy hội viên trong nhóm này. Hãy thử nhóm khác hoặc xóa từ khóa tìm kiếm." : membership === "valid" ? "Chưa có hội viên còn hạn." : membership === "expiring" ? "Không có hội viên sắp hết hạn trong khoảng đã chọn." : "Chưa có hội viên hết hạn."}
               </div>
             ) : (
               members.map((member) => {

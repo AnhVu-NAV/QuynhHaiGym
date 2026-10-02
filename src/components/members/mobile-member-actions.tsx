@@ -50,7 +50,7 @@ export function MobileMemberActions({
       <SheetTrigger render={<Button variant="outline" size="sm" className="h-9 w-full justify-center rounded-xl px-2 text-xs" />}>
         <MoreHorizontal className="h-4 w-4" /> Thao tác
       </SheetTrigger>
-      <SheetContent side="bottom" className="max-h-[85dvh] rounded-t-3xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+      <SheetContent side="bottom" className="max-h-[85dvh] rounded-t-3xl px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-2">
         <SheetHeader className="px-0 pb-2 pr-10">
           <SheetTitle>Thao tác hội viên</SheetTitle>
           <SheetDescription>{member.fullName} · {member.phoneNumber}</SheetDescription>
