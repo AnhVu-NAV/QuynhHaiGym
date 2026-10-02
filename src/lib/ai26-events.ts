@@ -10,6 +10,7 @@ import {
   devices,
   failedCheckIns,
   members,
+  memberPreservations,
   subscriptions,
 } from "@/db/schema"
 import {
@@ -206,12 +207,15 @@ async function handleFastLogEvent(
   const allowed = row.member_id !== null
     && row.member_status === "active"
     && row.has_active_subscription === true
+    && row.is_preserved === false
   const recent = Math.abs(Date.now() - checkInAt.getTime()) <= 120_000
   const message = row.member_id === null
     ? "Khuôn mặt chưa liên kết với hội viên"
     : row.member_status !== "active"
       ? "Hội viên đang bị khóa"
-      : row.has_active_subscription
+      : row.is_preserved
+        ? "Gói tập đang trong thời gian bảo lưu"
+        : row.has_active_subscription
         ? "Check-in thành công"
         : "Gói tập đã hết hạn hoặc chưa có hiệu lực"
 
@@ -290,13 +294,26 @@ async function handleLogEvent(device: typeof devices.$inferSelect, payload: Ai26
         gte(subscriptions.endDate, checkInAt)
       ),
     })
+    const preservationDate = typeof record.time === "string"
+      ? record.time.trim().slice(0, 10)
+      : new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(checkInAt)
+    const activePreservation = await db.query.memberPreservations.findFirst({
+      where: and(
+        eq(memberPreservations.memberId, mapping.memberId),
+        eq(memberPreservations.status, "active"),
+        lte(memberPreservations.startDate, preservationDate),
+        gte(memberPreservations.endDate, preservationDate),
+      ),
+    })
 
     const memberActive = mapping.member.status === "active"
-    const allowed = memberActive && Boolean(activeSubscription)
+    const allowed = memberActive && Boolean(activeSubscription) && !activePreservation
     const recent = Math.abs(Date.now() - checkInAt.getTime()) <= 120_000
     const message = !memberActive
       ? "Hội viên đang bị khóa"
-      : activeSubscription
+      : activePreservation
+        ? "Gói tập đang trong thời gian bảo lưu"
+        : activeSubscription
         ? "Check-in thành công"
         : "Gói tập đã hết hạn hoặc chưa có hiệu lực"
 
@@ -317,7 +334,7 @@ async function handleLogEvent(device: typeof devices.$inferSelect, payload: Ai26
         enrollId,
         attemptedAt: checkInAt,
         eventKey,
-        reason: memberActive ? "subscription_expired" : "member_inactive",
+        reason: !memberActive ? "member_inactive" : activePreservation ? "membership_preserved" : "subscription_expired",
         message,
       })
     }

@@ -165,6 +165,26 @@ export const gymHolidays = pgTable("gym_holidays", {
   index("gym_holidays_start_end_idx").on(table.startDate, table.endDate),
 ]);
 
+// Member-specific membership pauses. The selected days are credited to the
+// subscription timeline and the original period remains available for audit.
+export const memberPreservations = pgTable("member_preservations", {
+  id: serial("id").primaryKey(),
+  memberId: integer("member_id").references(() => members.id).notNull(),
+  subscriptionId: integer("subscription_id").references(() => subscriptions.id).notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  creditedDays: integer("credited_days").notNull(),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("active"),
+  createdBy: varchar("created_by", { length: 255 }).references(() => users.id, { onDelete: "set null" }),
+  idempotencyKey: varchar("idempotency_key", { length: 100 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("member_preservations_idempotency_unique").on(table.idempotencyKey),
+  index("member_preservations_member_dates_idx").on(table.memberId, table.status, table.startDate, table.endDate),
+  index("member_preservations_subscription_idx").on(table.subscriptionId),
+]);
+
 // Check-ins
 export const checkIns = pgTable("check_ins", {
   id: serial("id").primaryKey(),
@@ -335,6 +355,7 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 // Relations
 export const membersRelations = relations(members, ({ many }) => ({
   subscriptions: many(subscriptions),
+  preservations: many(memberPreservations),
   checkIns: many(checkIns),
   failedCheckIns: many(failedCheckIns),
   transactions: many(transactions),
@@ -391,6 +412,22 @@ export const subscriptionsRelations = relations(subscriptions, ({ one, many }) =
     references: [membershipPackages.id],
   }),
   transactions: many(transactions),
+  preservations: many(memberPreservations),
+}));
+
+export const memberPreservationsRelations = relations(memberPreservations, ({ one }) => ({
+  member: one(members, {
+    fields: [memberPreservations.memberId],
+    references: [members.id],
+  }),
+  subscription: one(subscriptions, {
+    fields: [memberPreservations.subscriptionId],
+    references: [subscriptions.id],
+  }),
+  creator: one(users, {
+    fields: [memberPreservations.createdBy],
+    references: [users.id],
+  }),
 }));
 
 export const checkInsRelations = relations(checkIns, ({ one }) => ({

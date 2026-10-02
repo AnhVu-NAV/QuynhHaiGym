@@ -41,6 +41,7 @@ const dateFormatter = new Intl.DateTimeFormat("vi-VN", {
 
 const reasonLabel: Record<string, string> = {
   subscription_expired: "Gói tập đã hết hạn",
+  membership_preserved: "Gói tập đang bảo lưu",
   member_inactive: "Hội viên đang bị khóa",
   unmapped_face: "Khuôn mặt chưa liên kết",
   missing_enroll_id: "Máy không gửi mã hội viên",

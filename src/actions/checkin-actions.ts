@@ -1,13 +1,14 @@
 "use server"
 
 import { db } from "@/db"
-import { members, subscriptions, checkIns, failedCheckIns } from "@/db/schema"
+import { members, memberPreservations, subscriptions, checkIns, failedCheckIns } from "@/db/schema"
 import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { consumeRateLimit, getRequestIp } from "@/lib/rate-limit"
 import { requireUser } from "@/lib/auth"
 import { normalizePagination } from "@/lib/pagination"
 import { resolveDateRange } from "@/lib/date-range"
+import { formatVietnamDate } from "@/lib/vietnam-time"
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
@@ -64,23 +65,38 @@ export async function processCheckIn(rawIdentifier: string) {
 
   // 2. Check an active subscription that is valid at this moment.
   const now = new Date()
-  const activeSub = await db.query.subscriptions.findFirst({
-    where: and(
-      eq(subscriptions.memberId, member.id),
-      eq(subscriptions.status, "active"),
-      lte(subscriptions.startDate, now),
-      gte(subscriptions.endDate, now)
-    ),
-    orderBy: [desc(subscriptions.endDate)]
-  })
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: VIETNAM_TIME_ZONE }).format(now)
+  const [activeSub, activePreservation] = await Promise.all([
+    db.query.subscriptions.findFirst({
+      where: and(
+        eq(subscriptions.memberId, member.id),
+        eq(subscriptions.status, "active"),
+        lte(subscriptions.startDate, now),
+        gte(subscriptions.endDate, now)
+      ),
+      orderBy: [desc(subscriptions.endDate)]
+    }),
+    db.query.memberPreservations.findFirst({
+      where: and(
+        eq(memberPreservations.memberId, member.id),
+        eq(memberPreservations.status, "active"),
+        lte(memberPreservations.startDate, todayKey),
+        gte(memberPreservations.endDate, todayKey),
+      ),
+    }),
+  ])
 
-  if (!activeSub) {
-    const message = "Gói tập của hội viên đã hết hạn. Vui lòng gia hạn gói."
+  if (member.status !== "active" || !activeSub || activePreservation) {
+    const message = member.status !== "active"
+      ? "Hội viên đang bị khóa. Vui lòng liên hệ quản lý."
+      : activePreservation
+        ? `Gói tập đang được bảo lưu đến hết ${formatVietnamDate(activePreservation.endDate)}.`
+        : "Gói tập của hội viên đã hết hạn. Vui lòng gia hạn gói."
     await db.insert(failedCheckIns).values({
       memberId: member.id,
       attemptedAt: now,
       source: "web",
-      reason: member.status === "active" ? "subscription_expired" : "member_inactive",
+      reason: member.status !== "active" ? "member_inactive" : activePreservation ? "membership_preserved" : "subscription_expired",
       message,
     })
     revalidatePath("/")

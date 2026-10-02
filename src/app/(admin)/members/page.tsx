@@ -24,6 +24,8 @@ import { requireUser } from "@/lib/auth"
 import { formatVietnamDate } from "@/lib/vietnam-time"
 import { QueryFilter } from "@/components/ui/query-filter"
 import { RefundDialog } from "@/components/transactions/refund-dialog"
+import { PreservationDialog } from "@/components/subscriptions/preservation-dialog"
+import { vietnamDateKey } from "@/lib/vietnam-time"
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const currentUser = await requireUser()
@@ -55,6 +57,8 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   }))
   const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY
   const cloudinaryCloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+  const now = new Date()
+  const todayKey = vietnamDateKey(now)
   const tabHref = (value: "valid" | "expiring" | "expired") => {
     const params = new URLSearchParams()
     params.set("membership", value)
@@ -140,9 +144,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 const latestSub = member.subscriptions
                   ?.filter((subscription) => subscription.status !== "cancelled")
                   .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
-                const isExpired = latestSub
-                  ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
-                  : true;
+                const currentSub = member.subscriptions
+                  ?.filter((subscription) => subscription.status === "active" && new Date(subscription.startDate) <= now && new Date(subscription.endDate) >= now)
+                  .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0]
+                const isExpired = !currentSub
+                const activePreservation = member.preservations.find((item) => item.status === "active" && item.startDate <= todayKey && item.endDate >= todayKey)
                 const refundableTransaction = latestSub?.transactions.find((transaction) =>
                   transaction.direction === "income"
                   && ["registration", "renewal"].includes(transaction.type)
@@ -172,7 +178,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         )}
                         <div className="mt-1.5">
                           {latestSub ? (
-                            isExpired ? (
+                            activePreservation ? (
+                              <Badge className="h-5 max-w-full truncate border-0 bg-sky-100 px-2 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 min-[390px]:text-xs">Bảo lưu đến {formatVietnamDate(activePreservation.endDate)}</Badge>
+                            ) : isExpired ? (
                               <Badge variant="destructive" className="h-5 max-w-full px-2 text-[10px] font-medium min-[390px]:text-xs">Đã hết hạn</Badge>
                             ) : (
                               <Badge variant="default" className="h-5 max-w-full truncate border-0 bg-emerald-100 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-200 min-[390px]:text-xs">
@@ -202,10 +210,19 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         activeSub={!isExpired && latestSub ? latestSub : undefined}
                         triggerClassName="h-9 w-full justify-center rounded-xl px-2 text-xs"
                       />
+                      {currentUser.role === "admin" && currentSub && (
+                        <PreservationDialog
+                          memberId={member.id}
+                          memberName={member.fullName}
+                          membershipEndDate={currentSub.endDate}
+                          history={member.preservations}
+                          triggerClassName="h-9 w-full justify-center rounded-xl px-2 text-xs"
+                        />
+                      )}
                       <Link
                         href={`/my-card/${member.publicToken}`}
                         target="_blank"
-                        className="inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-xl border border-indigo-200 bg-transparent px-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
+                        className={`inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-xl border border-indigo-200 bg-transparent px-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 ${currentUser.role === "admin" && currentSub ? "col-span-2" : ""}`}
                       >
                         <ExternalLink className="h-4 w-4 mr-1" /> Thẻ Ảo
                       </Link>
@@ -249,9 +266,11 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                     const latestSub = member.subscriptions
                       ?.filter((subscription) => subscription.status !== "cancelled")
                       .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0];
-                    const isExpired = latestSub
-                      ? latestSub.status !== "active" || new Date(latestSub.startDate) > new Date() || new Date(latestSub.endDate) < new Date()
-                      : true;
+                    const currentSub = member.subscriptions
+                      ?.filter((subscription) => subscription.status === "active" && new Date(subscription.startDate) <= now && new Date(subscription.endDate) >= now)
+                      .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())[0]
+                    const isExpired = !currentSub
+                    const activePreservation = member.preservations.find((item) => item.status === "active" && item.startDate <= todayKey && item.endDate >= todayKey)
                     const refundableTransaction = latestSub?.transactions.find((transaction) =>
                       transaction.direction === "income"
                       && ["registration", "renewal"].includes(transaction.type)
@@ -280,7 +299,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         <TableCell className="py-3">
                           <div className="mb-1.5 text-sm font-medium text-slate-700">{latestSub?.package.name || "Chưa đăng ký gói"}</div>
                           {latestSub ? (
-                            isExpired ? (
+                            activePreservation ? (
+                              <Badge className="border-0 bg-sky-100 text-xs font-semibold text-sky-700 hover:bg-sky-100">Bảo lưu đến {formatVietnamDate(activePreservation.endDate)}</Badge>
+                            ) : isExpired ? (
                               <Badge variant="destructive" className="font-medium text-xs">Hết hạn {formatVietnamDate(latestSub.endDate)}</Badge>
                             ) : (
                               <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-semibold text-xs border-0">
@@ -308,6 +329,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                               settings={settings || undefined}
                               activeSub={!isExpired && latestSub ? latestSub : undefined}
                             />
+                            {currentUser.role === "admin" && currentSub && (
+                              <PreservationDialog
+                                memberId={member.id}
+                                memberName={member.fullName}
+                                membershipEndDate={currentSub.endDate}
+                                history={member.preservations}
+                              />
+                            )}
                             {currentUser.role === "admin" && refundableTransaction && (
                               <RefundDialog
                                 transactionId={refundableTransaction.id}

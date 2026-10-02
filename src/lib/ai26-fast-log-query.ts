@@ -5,6 +5,7 @@ export type FastLogRow = {
   member_id: number | null
   member_status: string | null
   has_active_subscription: boolean
+  is_preserved: boolean
 }
 
 export type FastLogQueryInput = {
@@ -48,7 +49,15 @@ export function buildAi26FastLogQuery(input: FastLogQueryInput) {
             AND subscription.status = 'active'
             AND subscription.start_date <= ${input.checkInAt}
             AND subscription.end_date >= ${input.checkInAt}
-        ), false) AS has_active_subscription
+        ), false) AS has_active_subscription,
+        COALESCE(EXISTS (
+          SELECT 1
+          FROM member_preservations preservation
+          WHERE preservation.member_id = mapped.member_id
+            AND preservation.status = 'active'
+            AND preservation.start_date <= timezone('Asia/Ho_Chi_Minh', ${input.checkInAt}::timestamptz)::date
+            AND preservation.end_date >= timezone('Asia/Ho_Chi_Minh', ${input.checkInAt}::timestamptz)::date
+        ), false) AS is_preserved
       FROM device_row
       LEFT JOIN LATERAL (
         SELECT mapping.member_id
@@ -70,6 +79,7 @@ export function buildAi26FastLogQuery(input: FastLogQueryInput) {
       WHERE member_id IS NOT NULL
         AND member_status = 'active'
         AND has_active_subscription
+        AND NOT is_preserved
       ON CONFLICT (device_event_key) DO NOTHING
       RETURNING id
     ), failed_write AS (
@@ -82,17 +92,20 @@ export function buildAi26FastLogQuery(input: FastLogQueryInput) {
         CASE
           WHEN member_id IS NULL THEN 'unmapped_face'
           WHEN member_status <> 'active' THEN 'member_inactive'
+          WHEN is_preserved THEN 'membership_preserved'
           ELSE 'subscription_expired'
         END,
         CASE
           WHEN member_id IS NULL THEN 'Khuôn mặt chưa liên kết với hội viên'
           WHEN member_status <> 'active' THEN 'Hội viên đang bị khóa'
+          WHEN is_preserved THEN 'Gói tập đang trong thời gian bảo lưu'
           ELSE 'Gói tập đã hết hạn hoặc chưa có hiệu lực'
         END,
         ${input.eventKey}
       FROM resolved
       WHERE member_id IS NULL
         OR member_status <> 'active'
+        OR is_preserved
         OR NOT has_active_subscription
       ON CONFLICT (device_event_key) DO NOTHING
       RETURNING id
@@ -103,7 +116,7 @@ export function buildAi26FastLogQuery(input: FastLogQueryInput) {
       ON CONFLICT (event_key) DO NOTHING
       RETURNING id
     )
-    SELECT device_id, member_id, member_status, has_active_subscription
+    SELECT device_id, member_id, member_status, has_active_subscription, is_preserved
     FROM resolved
   `
 }

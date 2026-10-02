@@ -124,6 +124,10 @@ export async function getMembers(
           },
         },
         deviceMappings: { with: { device: true } },
+        preservations: {
+          orderBy: (preservation, { desc }) => [desc(preservation.startDate), desc(preservation.id)],
+          with: { creator: true },
+        },
       },
     }),
     db.select({ count: sql<number>`count(*)` }).from(members).where(whereClause),
