@@ -126,7 +126,9 @@ export async function getMembers(
         deviceMappings: { with: { device: true } },
         preservations: {
           orderBy: (preservation, { desc }) => [desc(preservation.startDate), desc(preservation.id)],
-          with: { creator: true },
+          with: {
+            creator: { columns: { fullName: true, username: true } },
+          },
         },
       },
     }),

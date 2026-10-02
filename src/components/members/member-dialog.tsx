@@ -21,6 +21,7 @@ import { toast } from "sonner"
 import { Pencil, UserPlus, Camera, ArrowLeft, ImagePlus, Trash2, CalendarDays } from "lucide-react"
 import { CldUploadWidget } from 'next-cloudinary'
 import { parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
+import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Họ tên phải có ít nhất 2 ký tự" }),
@@ -62,13 +63,15 @@ type MemberDialogProps = {
   cloudinaryApiKey?: string
   cloudinaryCloudName?: string
   devices?: EnrollmentDeviceOption[]
+  triggerClassName?: string
+  editTriggerLabel?: string
 }
 
 function todayInputValue() {
   return vietnamDateKey()
 }
 
-export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName, devices = [] }: MemberDialogProps) {
+export function MemberDialog({ mode, memberData, packages, settings, cloudinaryApiKey, cloudinaryCloudName, devices = [], triggerClassName, editTriggerLabel }: MemberDialogProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<"form" | "qr">("form")
   const [pendingData, setPendingData] = useState<MemberFormValues | null>(null)
@@ -237,8 +240,9 @@ export function MemberDialog({ mode, memberData, packages, settings, cloudinaryA
               <UserPlus className="h-4 w-4" /> Thêm hội viên
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="h-8 px-2">
+            <Button variant="outline" size="sm" className={cn("h-8 px-2", triggerClassName)}>
               <Pencil className="h-4 w-4 text-muted-foreground" />
+              {editTriggerLabel && <span>{editTriggerLabel}</span>}
             </Button>
           )
         }

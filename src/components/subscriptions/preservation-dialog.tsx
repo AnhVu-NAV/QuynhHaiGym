@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import { formatVietnamDate, vietnamDateKey } from "@/lib/vietnam-time"
 
-type PreservationHistory = {
+export type PreservationHistory = {
   id: number
   startDate: string
   endDate: string

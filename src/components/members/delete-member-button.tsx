@@ -13,8 +13,9 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
-export function DeleteMemberButton({ id }: { id: number }) {
+export function DeleteMemberButton({ id, triggerClassName, triggerLabel }: { id: number; triggerClassName?: string; triggerLabel?: string }) {
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
@@ -44,10 +45,11 @@ export function DeleteMemberButton({ id }: { id: number }) {
           <Button 
             variant="outline" 
             size="sm" 
-            className="h-8 px-2 text-red-500 hover:text-red-600 hover:bg-red-50"
+            className={cn("h-8 px-2 text-red-500 hover:bg-red-50 hover:text-red-600", triggerClassName)}
             disabled={isDeleting}
           >
             <Trash2 className="h-4 w-4" />
+            {triggerLabel && <span>{triggerLabel}</span>}
           </Button>
         }
       />

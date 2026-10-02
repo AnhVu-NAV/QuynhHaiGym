@@ -26,6 +26,7 @@ import { QueryFilter } from "@/components/ui/query-filter"
 import { RefundDialog } from "@/components/transactions/refund-dialog"
 import { PreservationDialog } from "@/components/subscriptions/preservation-dialog"
 import { vietnamDateKey } from "@/lib/vietnam-time"
+import { MobileMemberActions } from "@/components/members/mobile-member-actions"
 
 export default async function MembersPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const currentUser = await requireUser()
@@ -156,11 +157,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                 )
                 return (
                   <Card key={member.id} className="relative gap-0 overflow-visible border-slate-200 p-3 shadow-sm min-[390px]:p-4">
-                    <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1 min-[390px]:right-3 min-[390px]:top-3">
-                      <MemberDialog mode="edit" memberData={member} packages={activePackages} settings={settings || undefined} devices={enrollmentDevices} cloudinaryApiKey={cloudinaryApiKey} cloudinaryCloudName={cloudinaryCloudName} />
-                      {currentUser.role === "admin" && <DeleteMemberButton id={member.id} />}
-                    </div>
-                    <div className="flex min-w-0 items-start gap-2.5 pr-[4.75rem] min-[390px]:gap-3 min-[390px]:pr-20">
+                    <div className="flex min-w-0 items-start gap-2.5 min-[390px]:gap-3">
                       {member.avatarUrl ? (
                         <img src={member.avatarUrl} alt={`Ảnh của ${member.fullName}`} className="h-14 w-14 shrink-0 rounded-full border-2 border-slate-200 object-cover min-[390px]:h-16 min-[390px]:w-16" />
                       ) : (
@@ -210,32 +207,18 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                         activeSub={!isExpired && latestSub ? latestSub : undefined}
                         triggerClassName="h-9 w-full justify-center rounded-xl px-2 text-xs"
                       />
-                      {currentUser.role === "admin" && currentSub && (
-                        <PreservationDialog
-                          memberId={member.id}
-                          memberName={member.fullName}
-                          membershipEndDate={currentSub.endDate}
-                          history={member.preservations}
-                          triggerClassName="h-9 w-full justify-center rounded-xl px-2 text-xs"
-                        />
-                      )}
-                      <Link
-                        href={`/my-card/${member.publicToken}`}
-                        target="_blank"
-                        className={`inline-flex h-9 w-full items-center justify-center whitespace-nowrap rounded-xl border border-indigo-200 bg-transparent px-2 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50 ${currentUser.role === "admin" && currentSub ? "col-span-2" : ""}`}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-1" /> Thẻ Ảo
-                      </Link>
-                      {currentUser.role === "admin" && refundableTransaction && (
-                        <RefundDialog
-                          transactionId={refundableTransaction.id}
-                          memberName={member.fullName}
-                          amount={refundableTransaction.amount}
-                          paymentMethod={refundableTransaction.paymentMethod}
-                          triggerLabel="Hủy gói & hoàn tiền"
-                          triggerClassName="col-span-2 h-9 w-full justify-center rounded-xl text-xs"
-                        />
-                      )}
+                      <MobileMemberActions
+                        member={member}
+                        packages={activePackages}
+                        settings={settings || undefined}
+                        devices={enrollmentDevices}
+                        cloudinaryApiKey={cloudinaryApiKey}
+                        cloudinaryCloudName={cloudinaryCloudName}
+                        currentSubscription={currentSub}
+                        preservationHistory={member.preservations}
+                        refundableTransaction={refundableTransaction}
+                        isAdmin={currentUser.role === "admin"}
+                      />
                     </div>
                   </Card>
                 )
