@@ -57,10 +57,11 @@ export async function getMembers(
   limit = pagination.limit
   const { offset } = pagination
   
-  const searchClause = q
+  const normalizedQuery = q?.trim()
+  const searchClause = normalizedQuery
     ? or(
-        ilike(members.fullName, `%${q}%`),
-        ilike(members.phoneNumber, `%${q}%`)
+        sql<boolean>`unaccent(lower(${members.fullName})) like unaccent(lower(${`%${normalizedQuery}%`}))`,
+        ilike(members.phoneNumber, `%${normalizedQuery}%`)
       )
     : undefined
   // Keep explicit SQL aliases here. Drizzle's relational query builder aliases
