@@ -179,7 +179,9 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
                             activePreservation ? (
                               <Badge className="h-5 max-w-full truncate border-0 bg-sky-100 px-2 text-[10px] font-semibold text-sky-700 hover:bg-sky-100 min-[390px]:text-xs">Bảo lưu đến {formatVietnamDate(activePreservation.endDate)}</Badge>
                             ) : isExpired ? (
-                              <Badge variant="destructive" className="h-5 max-w-full px-2 text-[10px] font-medium min-[390px]:text-xs">Đã hết hạn</Badge>
+                              <Badge variant="destructive" className="h-5 max-w-full truncate px-2 text-[10px] font-medium min-[390px]:text-xs">
+                                Hết hạn {formatVietnamDate(latestSub.endDate)}
+                              </Badge>
                             ) : (
                               <Badge variant="default" className="h-5 max-w-full truncate border-0 bg-emerald-100 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-200 min-[390px]:text-xs">
                                 Còn hạn đến {formatVietnamDate(latestSub.endDate)}
