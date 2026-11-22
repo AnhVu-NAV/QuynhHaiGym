@@ -4,9 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-21",
   "workers_dev": true,
-  "limits": {
-    "cpu_ms": 10
-  },
+  "preview_urls": false,
   "vars": {
     "ORIGIN_URL": "https://quynhhaigym.vercel.app",
     "AI26_ALLOWED_SERIALS": "AYUD20048026"
