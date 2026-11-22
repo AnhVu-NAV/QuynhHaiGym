@@ -91,7 +91,12 @@ export async function POST(request: Request) {
     return json({ result: false, reason: "device not allowed" }, 403)
   }
 
-  const remoteAddress = request.headers.get("x-forwarded-for")
+  const fromTrustedEdge = Boolean(process.env.AI26_EDGE_SECRET)
+    && request.headers.get("authorization") === `Bearer ${process.env.AI26_EDGE_SECRET}`
+    && request.headers.get("x-ai26-edge-relay") === "cloudflare"
+  const remoteAddress = (fromTrustedEdge
+    ? request.headers.get("x-ai26-client-ip")
+    : request.headers.get("x-forwarded-for"))
     ?.split(",")[0]
     ?.trim()
     .slice(0, 100)

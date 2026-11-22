@@ -4,6 +4,8 @@
 /node_modules
 /device-gateway/node_modules
 /device-gateway/dist
+/cloudflare-ai26-relay/node_modules
+/cloudflare-ai26-relay/.wrangler
 /.pnp
 .pnp.*
 .yarn/*

@@ -13,24 +13,48 @@ import {
 import { logAction } from "@/actions/audit-actions"
 import { requireAdmin, requireUser } from "@/lib/auth"
 import { formatAi26Date, type Ai26Command } from "@/lib/ai26-protocol"
+import {
+  getAi26EdgeDeviceStatus,
+  isAi26EdgeConfigured,
+  setAi26EdgeDeviceAccess,
+} from "@/lib/ai26-edge"
+import { queueDeviceCommand } from "@/lib/device-command-queue"
 
 async function sendTrackedCommand(options: {
   device: typeof devices.$inferSelect
   command: Ai26Command
   memberId?: number
 }) {
-  await db.insert(deviceCommands).values({
-    deviceId: options.device.id,
-    memberId: options.memberId,
-    command: options.command.cmd,
-    payload: options.command,
-    status: "pending",
-  })
+  const queued = await queueDeviceCommand(options)
 
   return {
     success: true,
-    message: "Đã xếp lệnh. AI26 sẽ nhận ở lần đồng bộ tiếp theo.",
+    message: queued.edgeQueued
+      ? "Đã gửi lệnh qua relay; AI26 sẽ nhận trong lần checklive tiếp theo."
+      : "Đã xếp lệnh dự phòng. AI26 sẽ nhận ở lần đồng bộ tiếp theo.",
   }
+}
+
+async function applyEdgeStatus<T extends {
+  serialNumber: string
+  status: string
+  lastSeenAt: Date | null
+}>(device: T): Promise<T> {
+  const edge = await getAi26EdgeDeviceStatus(device.serialNumber)
+  if (!edge) return device
+  return {
+    ...device,
+    status: edge.online ? "online" : "offline",
+    lastSeenAt: edge.lastSeenAt || device.lastSeenAt,
+  }
+}
+
+async function deviceOnline(device: typeof devices.$inferSelect) {
+  const edge = await getAi26EdgeDeviceStatus(device.serialNumber)
+  if (edge) return edge.online
+  return device.status === "online"
+    && Boolean(device.lastSeenAt)
+    && Date.now() - device.lastSeenAt!.getTime() < 90_000
 }
 
 export async function getDevices() {
@@ -44,7 +68,8 @@ export async function getDevices() {
     },
   })
   const checkedAt = Date.now()
-  return deviceList.map((device) => ({
+  const devicesWithStatus = await Promise.all(deviceList.map(applyEdgeStatus))
+  return devicesWithStatus.map((device) => ({
     ...device,
     online: device.status === "online"
       && Boolean(device.lastSeenAt)
@@ -104,8 +129,10 @@ export async function getDeviceDashboard(options: {
     db.select({ count: sql<number>`count(*)` }).from(deviceEvents).where(gte(deviceEvents.createdAt, retentionCutoff)),
   ])
 
+  const devicesWithStatus = await Promise.all(deviceList.map(applyEdgeStatus))
+
   return {
-    devices: deviceList,
+    devices: devicesWithStatus,
     commands,
     events,
     checkedAt: Date.now(),
@@ -137,9 +164,17 @@ export async function saveDevice(data: { serialNumber: string; name: string }) {
     set: { name, isActive: true, updatedAt: new Date() },
   }).returning()
 
-  await logAction("CREATE", "DEVICE", device.id, { serialNumber, name })
+  const edgeAuthorized = await setAi26EdgeDeviceAccess(serialNumber, true)
+
+  await logAction("CREATE", "DEVICE", device.id, { serialNumber, name, edgeAuthorized })
   revalidatePath("/devices")
-  return { success: true, device }
+  return {
+    success: true,
+    device,
+    message: isAi26EdgeConfigured() && !edgeAuthorized
+      ? "Đã lưu máy; relay đang tạm lỗi nên máy vẫn dùng đường dự phòng."
+      : "Đã thêm máy và cấp quyền kết nối.",
+  }
 }
 
 export async function deleteDevice(deviceId: number) {
@@ -164,6 +199,7 @@ export async function deleteDevice(deviceId: number) {
   await db.update(devices)
     .set({ isActive: false, status: "offline", updatedAt: new Date() })
     .where(eq(devices.id, device.id))
+  await setAi26EdgeDeviceAccess(device.serialNumber, false)
 
   revalidatePath("/devices")
   revalidatePath("/members")
@@ -193,9 +229,7 @@ export async function startFaceEnrollment(memberId: number, deviceId: number) {
     return { success: false, message: "Máy AI26 không tồn tại hoặc đã bị gỡ" }
   }
 
-  const online = device.status === "online"
-    && Boolean(device.lastSeenAt)
-    && Date.now() - device.lastSeenAt!.getTime() < 90_000
+  const online = await deviceOnline(device)
   if (!online) {
     return { success: false, message: `Máy ${device.name} đang ngoại tuyến. Hãy kiểm tra kết nối rồi thử lại.` }
   }
@@ -318,9 +352,7 @@ export async function requestDeviceLogCleanup(deviceId: number) {
   if (!device) return { success: false, message: "Không tìm thấy thiết bị" }
 
   const now = Date.now()
-  const online = device.status === "online"
-    && Boolean(device.lastSeenAt)
-    && now - device.lastSeenAt!.getTime() < 90_000
+  const online = await deviceOnline(device)
   if (!online) {
     return { success: false, message: "Máy đang ngoại tuyến nên chưa thể dọn nhật ký" }
   }

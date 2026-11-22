@@ -20,6 +20,7 @@ import {
 } from "@/lib/ai26-protocol"
 import { queueMemberDeviceAccess } from "@/lib/member-device-access"
 import { buildAi26FastLogQuery, type FastLogRow } from "@/lib/ai26-fast-log-query"
+import { queueDeviceCommand } from "@/lib/device-command-queue"
 
 type DeferTask = (task: () => Promise<void>) => void
 
@@ -108,11 +109,9 @@ async function queueAutomaticLogCleanup(device: typeof devices.$inferSelect) {
   })
   if (existing) return
 
-  await db.insert(deviceCommands).values({
-    deviceId: device.id,
-    command: "cleanlog",
-    payload: { cmd: "cleanlog" },
-    status: "pending",
+  await queueDeviceCommand({
+    device,
+    command: { cmd: "cleanlog" },
   })
   await addAuditEvent(device.id, "auto_cleanlog_queued", {
     usedlog: used,

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "quynh-hai-ai26",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-21",
+  "workers_dev": true,
+  "limits": {
+    "cpu_ms": 10
+  },
+  "vars": {
+    "ORIGIN_URL": "https://quynhhaigym.vercel.app",
+    "AI26_ALLOWED_SERIALS": "AYUD20048026"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AI26_DEVICE",
+        "class_name": "Ai26Device"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Ai26Device"]
+    }
+  ]
+}

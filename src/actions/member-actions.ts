@@ -14,6 +14,7 @@ import { addCalendarMonthsClamped } from "@/lib/membership"
 import { getHolidayAdjustedEndDate } from "@/lib/holiday-preservation"
 import { parseVietnamDateInput, vietnamDateKey } from "@/lib/vietnam-time"
 import type { BatchItem } from "drizzle-orm/batch"
+import { dispatchPendingDeviceCommands } from "@/lib/device-command-queue"
 
 const memberCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(255),
@@ -467,6 +468,7 @@ export async function deleteMember(id: number) {
     }).where(eq(members.id, id)),
   )
   await db.batch(operations as [BatchItem<"pg">, ...BatchItem<"pg">[]])
+  await dispatchPendingDeviceCommands(deviceIds)
 
   await logAction("DELETE", "MEMBER", id, {
     anonymized: true,

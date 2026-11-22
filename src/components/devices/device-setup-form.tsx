@@ -16,11 +16,11 @@ export function DeviceSetupForm() {
   async function submit(formData: FormData) {
     setPending(true)
     try {
-      await saveDevice({
+      const result = await saveDevice({
         name: String(formData.get("name") || ""),
         serialNumber: String(formData.get("serialNumber") || ""),
       })
-      toast.success("Đã thêm máy và cấp quyền kết nối")
+      toast.success(result.message)
       formRef.current?.reset()
       router.refresh()
     } catch (error) {

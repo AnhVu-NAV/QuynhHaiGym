@@ -6,6 +6,7 @@ import {
   deviceCommands,
   deviceMemberMappings,
 } from "@/db/schema"
+import { queueDeviceCommand } from "@/lib/device-command-queue"
 
 export async function queueMemberDeviceAccess(memberId: number, enabled: boolean) {
   const mappings = await db.query.deviceMemberMappings.findMany({
@@ -37,16 +38,14 @@ export async function queueMemberDeviceAccess(memberId: number, enabled: boolean
       }).where(eq(deviceCommands.id, existing.id))
     }
 
-    await db.insert(deviceCommands).values({
-      deviceId: mapping.deviceId,
+    await queueDeviceCommand({
+      device: mapping.device,
       memberId,
-      command: "enableuser",
-      payload: {
+      command: {
         cmd: "enableuser",
         enrollid: mapping.enrollId,
         enflag: enabled ? 1 : 0,
       },
-      status: "pending",
     })
     queued += 1
   }
